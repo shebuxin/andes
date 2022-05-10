@@ -1,9 +1,9 @@
-ANDES 1.6.2.post186.dev0+gc726b5b1
+ANDES 1.6.2.post187.dev0+gfafd5919
 Copyright (C) 2015-2022 Hantao Cui
 
 ANDES comes with ABSOLUTELY NO WARRANTY
 Case file: /home/bshe/repos/andes/bshe/VIS_opf/ieee14_base.xlsx
-Report time: 05/09/2022 07:46:52 PM
+Report time: 05/09/2022 09:13:28 PM
 
 Power flow converged in 4 iterations.
 Flat-start: No
