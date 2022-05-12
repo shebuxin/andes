@@ -1,6 +1,6 @@
-## Probelm formulation (without analytical Pvsg)
+## Probelm formulation (without analytical P_vsg)
 
-### variable in objective function
+### Variable in objective function
 
 $pg$: power of generator
 
@@ -10,9 +10,9 @@ $prd$: down researve
 
 $H_{vsg}$: virtual inertia
 
-$D_{vsg}$: virutal damping
+$D_{vsg}$: virutal damping      ***Use andes to plot Eig***
 
-### some intern variable
+### Some intern variable
 
 $$
 M_{sys} = \frac {\sum (M_gP_{bg} + M_{vsg}P_{bvsg})}
@@ -43,12 +43,50 @@ $R_g$ is soted in 'TGOV1N' andes file;
 
 ## Q&A
 
-Q1: What is $D_t$ in 'TGOV1N' andes?
+**Q1:** What is $D_t$ in 'TGOV1N' andes?
 
-Q2: Where to find $K_g$?
+$D_t$ is damping of governor;
 
-Q3: How to merge parameters in different andes files to a single table?
+GGEROW also has a damping parameter, which is used in frequency response model.
 
-Q4: Should add intern variables as indepent variable? 
+
+**Q2:** Where to find $K_g$?
+
+Andes has no $K_g$, assume to be 1
+
+$R_g$ maps power to frequency, droop coefficient
+
+$K_g/R_g$ maps frequecy to power
+
+
+**Q3:** How to merge parameters in different andes files to a single table?
+
+staticGen = PV + Slack
+
+use function merge
+
+```
+res = pd.merge(left=stg.rename(columns={'idx':'gen'}), right=vsg, on='gen', how='left')
+```
+
+on shows key name to merge
+rename the header with same key
+
+**Check pandas "merge" function documentation:**
+
+https://realpython.com/pandas-merge-join-and-concat/
+
+**Fill pandas nan with " "**
+
+dataframe.fillna('empty', inplace=true)   %把merge表格时产生的nan用给定字符串填充，这里用了‘enpty'，防止andes调用时候报错
+
+inplace = false, 则原表不变，返回一个修改过的表
+
+
+**Q4:** Should add intern variables as indepent variable?
+
+可以增加中间变量，但是中间变量不需要声明成gurobipy的变量
 
 What if there variable are not included in constriants? i.e. the neural output of MLP, and some binary variables
+
+需要声明成gurobipy变量
