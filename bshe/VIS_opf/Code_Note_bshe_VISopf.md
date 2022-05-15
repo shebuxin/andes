@@ -41,6 +41,15 @@ $R_g$ is soted in 'TGOV1N' andes file;
 
 ---
 
+# Coding table
+
+| Constraints | formulation_var | coding_var |
+| ----------- | --------------- | ---------- |
+|             |                 |            |
+|             |                 |            |
+
+---
+
 ## Q&A
 
 **Q1:** What is $D_t$ in 'TGOV1N' andes?
@@ -49,7 +58,6 @@ $D_t$ is damping of governor;
 
 GGEROW also has a damping parameter, which is used in frequency response model.
 
-
 **Q2:** Where to find $K_g$?
 
 Andes has no $K_g$, assume to be 1
@@ -57,7 +65,6 @@ Andes has no $K_g$, assume to be 1
 $R_g$ maps power to frequency, droop coefficient
 
 $K_g/R_g$ maps frequecy to power
-
 
 **Q3:** How to merge parameters in different andes files to a single table?
 
@@ -81,7 +88,6 @@ https://realpython.com/pandas-merge-join-and-concat/
 dataframe.fillna('empty', inplace=true)   %把merge表格时产生的nan用给定字符串填充，这里用了‘enpty'，防止andes调用时候报错
 
 inplace = false, 则原表不变，返回一个修改过的表
-
 
 **Q4:** Should add intern variables as indepent variable?
 
