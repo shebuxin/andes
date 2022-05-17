@@ -127,11 +127,13 @@ Why this function can initiallize a system? (No input system)
 
 Run 'from_andes' before run solve optimization
 
+
 Q2: input system of rted? No ''from_andes''
 
 data comes from system data 'from_andes'
 
 Manually define **self**.**gen**[**'p_pre'**]
+
 
 Q3: opf results pru, prd, bu?
 
@@ -152,32 +154,40 @@ line 619, 621
 1) step one: run dispatch
 
 2. step two: run TDS, keep generating AGC
+
 3. step three: AGC is dispatched to gen accordin go bu and bd
+
 4. step four: run dispatch (every 5 minutes)
 
-Q4: what is sfr du and dd?
+
+Q4: what is sfr du and dd? 
 
 sfr requirements for up and down regulation, not necessarily met
 
 estimated by operator, i.e. ISO
 
-How to formulate the pru and prd constraints?
+
+How to formulate the pru and prd constraints? 
 
 rted: hard contraints for sfr regulation
 
-Q5(rted2): gen_idx for type II is manually defined?
+
+Q5(rted2): gen_idx for type II is manually defined? 
 
 mannually defined
+
 
 Q6: **for** (**new_key**, **new_value**) **in**gendict.**items**()
 
 dict is stored in a dict
+
 
 Q7: soft sfr?
 
 remove sfr du and dd constraints
 
 add violation cost to obj
+
 
 ## Q&A  Co-sim ieee14
 
@@ -203,17 +213,21 @@ From PJM: *https://dataminer2.pjm.com/list*
 
 develop analytical 的框架?
 
+
 ED里面0，1变量不可导：0、1变量找不到对偶，不可导
 
 ---
+
 
 Q2: gen_cost matirx (in [7]) seems different from that in dcopf
 
 gen_cost is matpower format，use the last three column
 
+
 目前 二次 一次都有的结果需要validate
 
 只用二次或者只用一次结果正确
+
 
 Q3: dataframe? set uncontrollable gen before initialize opf class?
 
@@ -223,6 +237,7 @@ ssp.gen.controllable.iloc[4] = False
 ```
 
 iloc: index location, 就是row
+
 
 Q4: Some functions imported from andes
 
@@ -235,18 +250,22 @@ make line table
 
 runopp_map → run with acopf with pandapower and map to andes
 
+
 Q5: How to calculate AGC signal? Use PI?
 
 PI regu in TDS
 
 accumulated AGC, dispatch AGC results every every 4s
 
+
 Q6: Tool to run acopf? data source?
 
 pandapower, update load file before running opf
 
+
 Q7: Smooth setpoint?
 
 smoote setpoint (calculated by economic dispatch) for TDS
+
 
 Q8: use andes build in plot or matplot?  how to set different colors when break through the limit ?
