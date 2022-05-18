@@ -153,6 +153,8 @@ class system:
         self.cost['c1'] = 1
         self.cost['c0'] = 0
         self.cost['cr'] = 0
+        self.cost['cru'] = 0
+        self.cost['crd'] = 0
 
 
 class dcopf(system):

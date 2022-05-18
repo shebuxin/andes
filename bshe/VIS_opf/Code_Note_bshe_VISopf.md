@@ -74,17 +74,17 @@ the above dataframe is stored in a dictionary with new_name = var_name+'dict', i
 
 generator output:
 
-| Constraints                                     | formulation_var  | Coding_var                                                                                | Check |
-| ----------------------------------------------- | ---------------- | ----------------------------------------------------------------------------------------- | ----- |
-| objective function                              | $G_i$, $c_i$ | pg [ gendict.keys ]<br />costdict [ gendict.keys ] ['c0/c1/c2']                           |       |
-| Power balance                                   |                  | pg [ gendict.keys ]<br />ptotal = self.load.p0.sum( )                                     |       |
-| Line limit                                      |                  | linedict[ idx ] [ 'sup' ]  %% 'sup' is load contribution to line, define it in from andes |       |
-| SG limit (type I)                               |                  | defined in '_build_var'                                                                   |       |
-| SG ramping rate                                 |                  |                                                                                           |       |
-| VSG generation limit (type II)                  |                  | defined in '_build_var'                                                                   |       |
-| VSG power reserve: (upreserve and down reserve) |                  |                                                                                           |       |
-| RoCof                                           |                  |                                                                                           |       |
-| Nadir                                           |                  |                                                                                           |       |
+| Constraints                                     | idx | formulation_var  | Coding_var                                                                                | Check |
+| ----------------------------------------------- | --- | ---------------- | ----------------------------------------------------------------------------------------- | ----- |
+| objective function                              |     | $G_i$, $c_i$ | pg [ gendict.keys ]<br />costdict [ gendict.keys ] ['c0/c1/c2']                           |       |
+| Power balance                                   | 01  |                  | pg [ gendict.keys ]<br />ptotal = self.load.p0.sum( )                                     |       |
+| Line limit                                      | 02  |                  | linedict[ idx ] [ 'sup' ]  %% 'sup' is load contribution to line, define it in from andes |       |
+| SG limit (type I)                               |     |                  | defined in '_build_var'                                                                   |       |
+| SG ramping rate                                 |     |                  |                                                                                           |       |
+| VSG generation limit (type II)                  |     |                  | defined in '_build_var'                                                                   |       |
+| VSG power reserve: (upreserve and down reserve) |     |                  |                                                                                           |       |
+| RoCof                                           |     |                  |                                                                                           |       |
+| Nadir                                           |     |                  |                                                                                           |       |
 
 ---
 
