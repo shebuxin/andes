@@ -86,6 +86,19 @@ generator output:
 | RoCof                                           |     |                  |                                                                                           |       |
 | Nadir                                           |     |                  |                                                                                           |       |
 
+RoCo constraint:
+$$
+RoCof= \Delta P_e / M_{sys}
+$$
+
+$$
+M_{sys} * RoCof_{lim} \ge \Delta P_e 
+$$
+frequency nadir constraint:
+$$
+- f_{nadir-lim} \le f_{nadir-pred} \le f_{nadir-lim}
+$$
+
 ---
 
 ## Q&A
