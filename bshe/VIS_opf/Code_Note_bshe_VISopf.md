@@ -66,6 +66,9 @@ the above dataframe is stored in a dictionary with new_name = var_name+'dict', i
 
 1. **pg**: **output of generators**
    call a specific generator output: **pg [ gendict.keys ]**, the keys are 'idex', the index of **gen** (generators)
+2. **Mvsg**
+3. **Dvsg**
+4. **zf, zp, af and ap**: for ML linearization
 
 #### constant py dict var
 
@@ -87,21 +90,37 @@ generator output:
 | Nadir                                           |     |                  |                                                                                           |       |
 
 RoCo constraint:
+
 $$
 RoCof= \Delta P_e / M_{sys}
 $$
 
 $$
-M_{sys} * RoCof_{lim} \ge \Delta P_e 
+M_{sys} * RoCof_{lim} \ge \Delta P_e
 $$
+
 frequency nadir constraint:
+
 $$
 - f_{nadir-lim} \le f_{nadir-pred} \le f_{nadir-lim}
 $$
 
 ---
 
-## Q&A
+# Code version
+
+1) **base:** dc opf
+   power balance, line limit
+2) **vis1:** dc opf + frequency constaints (ML linearzation)
+3) **vis2:** dc opf + frequency constraints + vsg Ppeak constraints (ML linearzation)
+4) **vis3:** dc opf + frequency constraints (ML linearzation) + vsg static power reserve (analytical formulation)
+
+# Code validation
+
+ieee 39 case
+
+
+# Q&A
 
 **Q1:** What is $D_t$ in 'TGOV1N' andes?
 
