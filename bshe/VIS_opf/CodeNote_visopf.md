@@ -1,4 +1,4 @@
-## Probelm formulation (without analytical P_vsg)
+## Probelm formulation
 
 ### Variable in objective function
 
@@ -55,7 +55,7 @@ $R_g$ is soted in 'TGOV1N' andes file;
    column: bus power transfer coefficients to each line
 6) **cost**: ['idx', 'c2', 'c1', 'c0', 'cr']
 
-   **---TO DO---**
+   **---Revised---**
 7) add two column to **gen** [type, M_vsg, D_vsg]
 
 the above dataframe is stored in a dictionary with new_name = var_name+'dict', i.g., gen → gendict
@@ -69,6 +69,7 @@ the above dataframe is stored in a dictionary with new_name = var_name+'dict', i
 2. **Mvsg**
 3. **Dvsg**
 4. **zf, zp, af and ap**: for ML linearization
+5. **pru, pud:** power reserve for vsg inertia support
 
 #### constant py dict var
 
@@ -79,15 +80,15 @@ generator output:
 
 | Constraints                                     | idx | formulation_var  | Coding_var                                                                                | Check |
 | ----------------------------------------------- | --- | ---------------- | ----------------------------------------------------------------------------------------- | ----- |
-| objective function                              |     | $G_i$, $c_i$ | pg [ gendict.keys ]<br />costdict [ gendict.keys ] ['c0/c1/c2']                           |       |
-| Power balance                                   | 01  |                  | pg [ gendict.keys ]<br />ptotal = self.load.p0.sum( )                                     |       |
-| Line limit                                      | 02  |                  | linedict[ idx ] [ 'sup' ]  %% 'sup' is load contribution to line, define it in from andes |       |
-| SG limit (type I)                               |     |                  | defined in '_build_var'                                                                   |       |
+| objective function                              |     | $G_i$, $c_i$ | pg [ gendict.keys ]<br />costdict [ gendict.keys ] ['c0/c1/c2']                           | √    |
+| Power balance                                   | 01  |                  | pg [ gendict.keys ]<br />ptotal = self.load.p0.sum( )                                     | √    |
+| Line limit                                      | 02  |                  | linedict[ idx ] [ 'sup' ]  %% 'sup' is load contribution to line, define it in from andes | √    |
+| SG limit (type I)                               |     |                  | defined in '_build_var'                                                                   | √    |
 | SG ramping rate                                 |     |                  |                                                                                           |       |
-| VSG generation limit (type II)                  |     |                  | defined in '_build_var'                                                                   |       |
+| VSG generation limit (type II)                  |     |                  | defined in '_build_var'                                                                   | √    |
 | VSG power reserve: (upreserve and down reserve) |     |                  |                                                                                           |       |
-| RoCof                                           |     |                  |                                                                                           |       |
-| Nadir                                           |     |                  |                                                                                           |       |
+| RoCof                                           |     |                  |                                                                                           | √    |
+| Nadir                                           |     |                  |                                                                                           | √    |
 
 RoCo constraint:
 
@@ -118,7 +119,6 @@ $$
 # Code validation
 
 ieee 39 case
-
 
 # Q&A
 

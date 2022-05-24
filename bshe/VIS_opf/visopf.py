@@ -105,12 +105,12 @@ class vis1(dcopf):
         # --- build gurobi model ---
         self.update_dict()
         self.mdl = gb.Model(self.name)
-        self._build_vars(self.mdl)
-        self._build_obj(self.mdl)
-        self._build_cons(self.mdl)
+        self._build_vars()
+        self._build_obj()
+        self._build_cons()
         logger.info('Successfully build vis0 model.')
 
-    def _build_vars(self, mdl):
+    def _build_vars(self):
         GEN = self.gendict.keys()
 
         # --- uncontrollable generators limit to p0 ---
@@ -300,6 +300,7 @@ class vis1(dcopf):
             # --- cost ---
             self.res_cost = self.mdl.getObjective().getValue()
             logger.info(f'Total cost={np.round(self.res_cost, 3)}')
+            
         # --- build output table ---
         dcres = pd.DataFrame()
         dcres['gen'] = self.gen['idx']
