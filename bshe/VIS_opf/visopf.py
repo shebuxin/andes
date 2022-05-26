@@ -53,8 +53,8 @@ class vis1(dcopf):
         self.norm = norm 
         self.nn = nn
         self.nn_num = nn_num
-        self.fnadir = 0.01 # TODO 0.6Hz
-        self.rocof = 0.01 # TODO 0.6Hz/s
+        self.fnadir = 0.01 # 0.6Hz
+        self.rocof = 0.01 # 0.6Hz/s
         self.dpe = dpe
 
     def from_andes(self, ssa, typeII=None):
@@ -108,6 +108,7 @@ class vis1(dcopf):
         self._build_vars()
         self._build_obj()
         self._build_cons()
+
         logger.info('Successfully build vis0 model.')
 
     def _build_vars(self):
@@ -143,18 +144,6 @@ class vis1(dcopf):
         self.Dvsg = self.mdl.addVars(vsg, name='Dvsg', vtype=gb.GRB.CONTINUOUS, obj=0,
                                ub=[5]*len(vsg), lb=[0]*len(vsg))
 
-        # --- a and z for ml assisted linearization ---
-        af = []
-        zf = []
-        for i in range(self.nn_num):
-            af.append('af'+str(i))
-            zf.append('zf'+str(i))
-        self.af_key = af
-        self.zf_key = zf
-        self.af = self.mdl.addVars(af, name='af', vtype=gb.GRB.BINARY)
-        self.zf = self.mdl.addVars(zf, name='zf', vtype=gb.GRB.CONTINUOUS, obj=0,
-                                lb=[0]*self.nn_num)
-
         print('Successfully build var.')
 
     def _build_obj(self):
@@ -163,14 +152,16 @@ class vis1(dcopf):
         costdict = self.costdict
 
         # --- minimize generation cost ---
-        cost_pg = sum(self.pg[gen] * costdict[gen]['c1']
-                      + self.pg[gen] * self.pg[gen] * costdict[gen]['c2']
-                      + costdict[gen]['c0'] * gendict[gen]['u']  # online status
-                      for gen in GEN)
+        cost_pg = sum(
+                        (self.pg[gen] * costdict[gen]['c1']
+                        + self.pg[gen] * self.pg[gen] * costdict[gen]['c2']
+                        + costdict[gen]['c0']) * gendict[gen]['u']  # online status
+                        for gen in GEN
+                    )
 
         # --- RegUp, RegDn cost ---
-        cost_ru = sum(self.pru[gen] * costdict[gen]['cru'] for gen in GEN)
-        cost_rd = sum(self.prd[gen] * costdict[gen]['crd'] for gen in GEN)
+        cost_ru = sum(self.pru[gen] * costdict[gen]['cru'] * gendict[gen]['u'] for gen in GEN)
+        cost_rd = sum(self.prd[gen] * costdict[gen]['crd'] * gendict[gen]['u'] for gen in GEN)
         cost_vsg = cost_ru + cost_rd
 
         self.obj = self.mdl.setObjective(expr=cost_pg + cost_vsg, sense=gb.GRB.MINIMIZE)
@@ -187,17 +178,27 @@ class vis1(dcopf):
         GEN = gendict.keys()
         LINE = linedict.keys()
 
-        # --- filter Type II gen ---
-        gendict_I, gendict_II= dict(), dict()
-        for (new_key, new_value) in gendict.items():
-            if new_value['type'] == 1:
-                gendict_I[new_key] = new_value
-        for (new_key, new_value) in gendict.items():
-            if new_value['type'] == 2:
-                gendict_II[new_key] = new_value
-        GENI = gendict_I.keys()
-        GENII = gendict_II.keys()
+        # --- 01 power balance ---
+        p_sum = sum(self.pg[gen] for gen in GEN)
+        self.mdl.addConstr(p_sum == ptotal, name='PowerBalance')
 
+        # --- 02 line limits ---
+        for line in LINE:
+            lhs1 = sum(self.pg[gen] * gen_gsfdict[gen][line] for gen in GEN)
+            self.mdl.addConstr(lhs1+linedict[line]['sup'] <= linedict[line]['rate_a'], name=f'{line}_U')
+            self.mdl.addConstr(lhs1+linedict[line]['sup'] >= -linedict[line]['rate_a'], name=f'{line}_D')
+
+        # --- 03 dynamic frequency constraints --
+        self._add_fcons()
+
+        print('Successfully build cons.')
+
+    def _add_fcons(self):
+
+        gendict = self.gendict
+        GENI, GENII = self._get_GENI_GENII_key()
+        self.GENI_test, self.GENII_test = self._get_GENI_GENII_key()
+        
         # --- Synthetic M/D/F/R ---
         Msys = sum(gendict[gen]['Sn'] * gendict[gen]['M'] for gen in GENI)
         Msys += sum(gendict[gen]['Sn'] * self.Mvsg[gen] for gen in GENII)
@@ -212,8 +213,21 @@ class vis1(dcopf):
         Rsys /= sum(gendict[gen]['Sn'] for gen in GENI)
 
         Fsys = sum(gendict[gen]['K'] / gendict[gen]['R'] * self.pg[gen] for gen in GENI)
-        Fsys /= sum(gendict[gen]['Sn'] for gen in GENI)
+        Fsys /= sum(gendict[gen]['Sn'] for gen in GENI)       
+        
+        # --- add gurobi var for fnadir ---
+        af = []
+        zf = []
+        for i in range(self.nn_num):
+            af.append('af'+str(i))
+            zf.append('zf'+str(i))
+        self.af_key = af
+        self.zf_key = zf
+        self.af = self.mdl.addVars(af, name='af', vtype=gb.GRB.BINARY)
+        self.zf = self.mdl.addVars(zf, name='zf', vtype=gb.GRB.CONTINUOUS, obj=0,
+                                lb=[0]*self.nn_num)
 
+        # --- add constraints ---
         # --- RoCof ----
         self.mdl.addConstr(self.rocof * Msys >= abs(self.dpe), name='RoCof')
 
@@ -257,17 +271,19 @@ class vis1(dcopf):
         self.mdl.addConstr(fnadir_pred >= - self.fnadir, name=f'fnadir_D')
         self.mdl.addConstr(fnadir_pred <= self.fnadir, name=f'fnadir_U')
 
-        # --- 01 power balance ---
-        p_sum = sum(self.pg[gen] for gen in GEN)
-        self.mdl.addConstr(p_sum == ptotal, name='PowerBalance')
+    def _get_GENI_GENII_key(self):
+        gendict = self.gendict
 
-        # --- 02 line limits ---
-        for line in LINE:
-            lhs1 = sum(self.pg[gen] * gen_gsfdict[gen][line] for gen in GEN)
-            self.mdl.addConstr(lhs1+linedict[line]['sup'] <= linedict[line]['rate_a'], name=f'{line}_U')
-            self.mdl.addConstr(lhs1+linedict[line]['sup'] >= -linedict[line]['rate_a'], name=f'{line}_D')
+        # --- filter Type II gen ---
+        gendict_I, gendict_II= dict(), dict()
+        for (new_key, new_value) in gendict.items():
+            if new_value['type'] == 1:
+                gendict_I[new_key] = new_value
+        for (new_key, new_value) in gendict.items():
+            if new_value['type'] == 2:
+                gendict_II[new_key] = new_value
 
-        print('Successfully build cons.')
+        return gendict_I.keys(), gendict_II.keys()
 
     def get_res(self):
         """
