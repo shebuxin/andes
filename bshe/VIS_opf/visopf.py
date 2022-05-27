@@ -85,7 +85,7 @@ class vis1(dcopf):
 
         # load new parameter from andes
         genrow = ssa.GENROU.as_df()
-        regc = ssa.REGCV2.as_df()
+        regc = ssa.REGCV1.as_df()
         tgov = ssa.TGOV1N.as_df()
         tgov.rename(columns={'idx':'gov', 'syn':'idx'}, inplace=True)
         regc.rename(columns={'idx':'vsg', 'gen':'idx', 'M':'Mvsg', 'D': 'Dvsg'},  inplace=True)
