@@ -1,3 +1,4 @@
+from os import PRIO_PGRP
 from statistics import fmean
 from andes.interop.pandapower import to_pandapower
 from andes.interop.pandapower import make_GSF, build_group_table
@@ -66,8 +67,10 @@ class vis1(dcopf):
         ssa: andes model
         typeII: list
             idx of typeII generator (vsg inverter), i.g., ['PV_6', 'PV_7']
+        Sbase: float
+            system base power (MW)
+        """
 
-        """      
         super().from_andes(ssa)
 
         # Define typeII generatiors, defalt typeI (type=1)
@@ -84,14 +87,17 @@ class vis1(dcopf):
         self.gen['K'] = 1
 
         # load new parameter from andes
+        # Note: control parameters are normalized accroding to andes system base: Sbase = 100 MVA
         genrow = ssa.GENROU.as_df()
         regc = ssa.REGCV1.as_df()
         tgov = ssa.TGOV1N.as_df()
+
         tgov.rename(columns={'idx':'gov', 'syn':'idx'}, inplace=True)
         regc.rename(columns={'idx':'vsg', 'gen':'idx', 'M':'Mvsg', 'D': 'Dvsg'},  inplace=True)
         # merge dataframe
         genrow = pd.merge(left=genrow, right=tgov[['idx', 'R']], on='idx', how='left')
         genrow.rename(columns={'idx': 'syn', 'gen': 'idx'}, inplace=True)
+
         self.gen = pd.merge(left=self.gen, right=genrow[['idx', 'M','D', 'R']], on='idx', how='left')
         self.gen = pd.merge(left=self.gen, right=regc[['idx', 'Mvsg', 'Dvsg']], on='idx', how='left')
         # fill nan caused by merge
@@ -132,15 +138,10 @@ class vis1(dcopf):
                                ub=gencp.band.tolist(), lb=[0] * gencp.shape[0])
         
         # --- Mvsg, Dvsg ---
-        gendict = self.gendict
-        gendict_II = dict()
-        for (new_key, new_value) in gendict.items():
-            if new_value['type'] == 2:
-                gendict_II[new_key] = new_value
-        vsg = gendict_II.keys()
+        _, vsg = self._get_GENI_GENII_key()
 
         self.Mvsg = self.mdl.addVars(vsg, name='Mvsg', vtype=gb.GRB.CONTINUOUS, obj=0,
-                               ub=[4]*len(vsg), lb=[0]*len(vsg))
+                               ub=[8]*len(vsg), lb=[0]*len(vsg))
         self.Dvsg = self.mdl.addVars(vsg, name='Dvsg', vtype=gb.GRB.CONTINUOUS, obj=0,
                                ub=[5]*len(vsg), lb=[0]*len(vsg))
 
@@ -189,7 +190,7 @@ class vis1(dcopf):
             self.mdl.addConstr(lhs1+linedict[line]['sup'] >= -linedict[line]['rate_a'], name=f'{line}_D')
 
         # --- 03 dynamic frequency constraints --
-        self._add_fcons()
+        # self._add_fcons()
 
         print('Successfully build cons.')
 
@@ -203,7 +204,6 @@ class vis1(dcopf):
         Msys = sum(gendict[gen]['Sn'] * gendict[gen]['M'] for gen in GENI)
         Msys += sum(gendict[gen]['Sn'] * self.Mvsg[gen] for gen in GENII)
         Msys /= sum(gendict[gen]['Sn'] for gen in gendict.keys())
-        self.Msys = Msys
 
         Dsys = sum(gendict[gen]['Sn'] * gendict[gen]['D'] for gen in GENI)
         Dsys += sum(gendict[gen]['Sn'] * self.Dvsg[gen] for gen in GENII)
@@ -228,10 +228,10 @@ class vis1(dcopf):
                                 lb=[0]*self.nn_num)
 
         # --- add constraints ---
-        # --- RoCof ----
+        # --- RoCof con----
         self.mdl.addConstr(self.rocof * Msys >= abs(self.dpe), name='RoCof')
 
-        # --- fnadir ----
+        # --- fnadir con----
         # - self.fnadir <= fnadir <= self.fnadir
         fnorm = self.norm['fnorm']
         Msys_norm = (Msys - fnorm['M'].iloc[0]) / fnorm['M'].iloc[1]
@@ -305,14 +305,21 @@ class vis1(dcopf):
             prd = [0] * self.gen.shape[0]
         else:
             logger.warning('Successfully solve vis1.')
+
             # --- gather data --
             pg = []
             pru = []
             prd = []
+            Mvsg = []
+            Dvsg = []
+            _, vsg = self._get_GENI_GENII_key()
             for gen in self.gendict.keys():
                 pg.append(self.pg[gen].X)
                 pru.append(self.pru[gen].X)
                 prd.append(self.prd[gen].X)
+            for vsg_idx in vsg:
+                Mvsg.append(self.Mvsg[vsg_idx].X)
+                Dvsg.append(self.Dvsg[vsg_idx].X)
             # --- cost ---
             self.res_cost = self.mdl.getObjective().getValue()
             logger.info(f'Total cost={np.round(self.res_cost, 3)}')
@@ -323,5 +330,12 @@ class vis1(dcopf):
         dcres['pg'] = pg
         dcres['pru'] = pru
         dcres['prd'] = prd
+
+        MDres = pd.DataFrame()
+        MDres['gen'] = vsg # TODO: key does not work
+        MDres['Mvsg'] = Mvsg 
+        MDres['Dvsg'] = Dvsg 
+
+        # dcres = pd.merge(left=dcres, right=MDres, on='gen', how='left')
         dcres.fillna(0, inplace=True)
-        return dcres
+        return dcres, MDres
