@@ -8,36 +8,52 @@ Existing generator: Bus 30-39
 
 replace SG connected to ***bus 30, 35, 37, and 38***
 
-## Typical parameters
+---
 
-Tips:
+**Tips:**
 
 1. increase cost of slack bus, since it will compensate for the power mismatch in dynamic simulation
 
-dpe = 0.006 p0
+## Typical parameters
 
-andes base value: $S_{base}$ = 100 MVA
+Known andes base value: $S_{andes}= 100 MVA$, and device base ss.config.mva = 1000 MVA
 
-ss.config.mva = 1000
+Assume dynamic paramteters:
 
 $$
-M_{sys} \in [6, 12] \\
+M_{vsg} \in [0,5],D_{vsg} \in [0,3] \\
 
-D_{sys} \in [0.5, 3] \\
+RoCof_{max} = 0.01 → 0.6Hz/s \\
+
+fnadir_{max} = 0.01 → 0.6Hz
+$$
+
+Then, synthetic parameters are:
+
+$$
+M_{sys} \in [4.49, 6.675] \\
+
+D_{sys} \in [0.5, 1.88] \\
 
 R_{sys} \in [15, 25] \\
 
-F_{sys} \in [0, 20]
+F_{sys} \in [4, 17]
 $$
+
+---
+
+1) Consider RoCof constraints: $\Delta P_e \in 0.01 * M_{sys} = [0.045, 0.067]$
+   if $\Delta P_e$ is less than 0.045, RoCof constriants are unbounded, and Mvsg could all set as 0
+
+
+
+
+
+---
 
 TODO:
 
-1. 确认andes的base 然后框定39case各个参数的优化空间
-
-   andes base: 100
-
-   ieee 39 base: 1000
-2. 在优化空间内，重新生成训练数据，并训练网络。把神经网络的训练预测结果和matlab仿真结果对比验证
+1. 在优化空间内，重新生成训练数据，并训练网络。把神经网络的训练预测结果和matlab仿真结果对比验证
 3. 设计ieee 39 的cost，然后验证下dcopf的结果
 4. 顺一遍 visopf fnadir的code，包括formulation + code
 5. debug 优化结果
@@ -89,10 +105,7 @@ TODO: Dynamic index under disturbances
 
 ### Base case: DC opf + RoCof
 
-Dpe max = 
-
-
-
+Dpe max =
 
 # Q&A
 
