@@ -58,7 +58,7 @@ class vis1(dcopf):
         self.rocof = 0.01 # 0.6Hz/s
         self.dpe = dpe
 
-    def from_andes(self, ssa, typeII=None):
+    def from_andes(self, ssa, typeII=None, Sbase=100):
         """
         Initialize parameters from andes mdoel
 
@@ -81,6 +81,7 @@ class vis1(dcopf):
                 self.gen['type'].iloc[row] = 2
 
         # add new parameter
+        self.scale = Sbase / self.mva
         self.gen['p_pre'] = 0
         self.gen['band'] = self.gen['pmax'] - self.gen['pmin']
         self.gen['Sn'] /= self.mva  # normalize Sn
@@ -102,6 +103,13 @@ class vis1(dcopf):
         self.gen = pd.merge(left=self.gen, right=regc[['idx', 'Mvsg', 'Dvsg']], on='idx', how='left')
         # fill nan caused by merge
         self.gen.fillna(0, inplace=True)
+
+        # norm control parameter according to Sbase
+        self.gen['M'] /= self.scale
+        self.gen['D'] /= self.scale
+        self.gen['R'] *= self.scale
+        self.gen['Mvsg'] /= self.scale
+        self.gen['Dvsg'] /= self.scale
 
         self.update_dict()
 
@@ -141,7 +149,7 @@ class vis1(dcopf):
         _, vsg = self._get_GENI_GENII_key()
 
         self.Mvsg = self.mdl.addVars(vsg, name='Mvsg', vtype=gb.GRB.CONTINUOUS, obj=0,
-                               ub=[8]*len(vsg), lb=[0]*len(vsg))
+                               ub=[10]*len(vsg), lb=[0]*len(vsg))
         self.Dvsg = self.mdl.addVars(vsg, name='Dvsg', vtype=gb.GRB.CONTINUOUS, obj=0,
                                ub=[5]*len(vsg), lb=[0]*len(vsg))
 
@@ -190,7 +198,7 @@ class vis1(dcopf):
             self.mdl.addConstr(lhs1+linedict[line]['sup'] >= -linedict[line]['rate_a'], name=f'{line}_D')
 
         # --- 03 dynamic frequency constraints --
-        # self._add_fcons()
+        self._add_fcons()
 
         print('Successfully build cons.')
 
@@ -198,12 +206,13 @@ class vis1(dcopf):
 
         gendict = self.gendict
         GENI, GENII = self._get_GENI_GENII_key()
-        self.GENI_test, self.GENII_test = self._get_GENI_GENII_key()
         
         # --- Synthetic M/D/F/R ---
         Msys = sum(gendict[gen]['Sn'] * gendict[gen]['M'] for gen in GENI)
         Msys += sum(gendict[gen]['Sn'] * self.Mvsg[gen] for gen in GENII)
         Msys /= sum(gendict[gen]['Sn'] for gen in gendict.keys())
+
+        self.Msys_test = Msys
 
         Dsys = sum(gendict[gen]['Sn'] * gendict[gen]['D'] for gen in GENI)
         Dsys += sum(gendict[gen]['Sn'] * self.Dvsg[gen] for gen in GENII)
@@ -213,7 +222,7 @@ class vis1(dcopf):
         Rsys /= sum(gendict[gen]['Sn'] for gen in GENI)
 
         Fsys = sum(gendict[gen]['K'] / gendict[gen]['R'] * self.pg[gen] for gen in GENI)
-        Fsys /= sum(gendict[gen]['Sn'] for gen in GENI)       
+        Fsys /= sum(gendict[gen]['Sn'] for gen in GENI)
         
         # --- add gurobi var for fnadir ---
         af = []
@@ -268,8 +277,8 @@ class vis1(dcopf):
         fnadir_pred = fnadir_norm * fnorm['fnadir'].iloc[1] + fnorm['fnadir'].iloc[0]
         fnadir_pred *= self.dpe
 
-        self.mdl.addConstr(fnadir_pred >= - self.fnadir, name=f'fnadir_D')
-        self.mdl.addConstr(fnadir_pred <= self.fnadir, name=f'fnadir_U')
+        # self.mdl.addConstr(fnadir_pred >= - self.fnadir, name=f'fnadir_D')
+        # self.mdl.addConstr(fnadir_pred <= self.fnadir, name=f'fnadir_U')
 
     def _get_GENI_GENII_key(self):
         gendict = self.gendict
@@ -332,10 +341,10 @@ class vis1(dcopf):
         dcres['prd'] = prd
 
         MDres = pd.DataFrame()
-        MDres['gen'] = vsg # TODO: key does not work
-        MDres['Mvsg'] = Mvsg 
-        MDres['Dvsg'] = Dvsg 
-
-        # dcres = pd.merge(left=dcres, right=MDres, on='gen', how='left')
+        MDres['gen'] = vsg
+        MDres['Mvsg'] = Mvsg
+        MDres['Dvsg'] = Dvsg
         dcres.fillna(0, inplace=True)
+        logger.info('Msys and Dsys are normlized by devise Sbase, transform to andes Sbase when do TDS')
+
         return dcres, MDres

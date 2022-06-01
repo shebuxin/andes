@@ -16,25 +16,27 @@ Tips:
 
 dpe = 0.006 p0
 
-Use andes base value: $S_{base}$ = 100 MVA
+andes base value: $S_{base}$ = 100 MVA
 
 ss.config.mva = 1000
 
-Msys
+$$
+M_{sys} \in [6, 12] \\
 
-Dsys
+D_{sys} \in [0.5, 3] \\
 
-Rsys
+R_{sys} \in [15, 25] \\
 
-Fsys
-
-
+F_{sys} \in [0, 20]
+$$
 
 TODO:
 
 1. 确认andes的base 然后框定39case各个参数的优化空间
 
-   base 都是100
+   andes base: 100
+
+   ieee 39 base: 1000
 2. 在优化空间内，重新生成训练数据，并训练网络。把神经网络的训练预测结果和matlab仿真结果对比验证
 3. 设计ieee 39 的cost，然后验证下dcopf的结果
 4. 顺一遍 visopf fnadir的code，包括formulation + code
@@ -85,7 +87,11 @@ Optimal objective  60.064
 
 TODO: Dynamic index under disturbances
 
-### Base case: DC opf + frequency constraint
+### Base case: DC opf + RoCof
+
+Dpe max = 
+
+
 
 
 # Q&A
