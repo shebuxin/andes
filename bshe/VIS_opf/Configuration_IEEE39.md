@@ -16,9 +16,9 @@ replace SG connected to ***bus 30, 35, 37, and 38***
 
 ## Typical parameters
 
-Known andes base value: $S_{andes}= 100 MVA$, and device base ss.config.mva = 1000 MVA
+Known andes base value: $S_{andes}$ = 100 MVA, and device base ss.config.mva = 1000 MVA
 
-Assume dynamic paramteters:
+Assume dynamic paramteters (using device base):
 
 $$
 M_{vsg} \in [0,5],D_{vsg} \in [0,3] \\
@@ -43,22 +43,18 @@ $$
 ---
 
 1) Consider RoCof constraints: $\Delta P_e \in 0.01 * M_{sys} = [0.045, 0.067]$
-   if $\Delta P_e$ is less than 0.045, RoCof constriants are unbounded, and Mvsg could all set as 0
-
-
-
-
+   If $\Delta P_e$ is less than 0.045, RoCof constriants are unbounded, and Mvsg could all set as 0
+   Here, ... bsed is used, which means the actual load equals to S_device_base * $\Delta P_e$
+2) Consider Nadir constraints:
+   $\Delta P_e \le 0.25 $, seems the **RoCof constriants are stronger than nadir constraints**, and **damping can greatly impact the nadir**
+   *verify 2 through analytical formulation ？？*
+3) 
 
 ---
 
 TODO:
 
-1. 在优化空间内，重新生成训练数据，并训练网络。把神经网络的训练预测结果和matlab仿真结果对比验证
-3. 设计ieee 39 的cost，然后验证下dcopf的结果
-4. 顺一遍 visopf fnadir的code，包括formulation + code
-5. debug 优化结果
-
-   和飞哥确认，gorubypy 能不能看哪些约束bounde，
+gorubypy 能不能看哪些约束bounded?
 
 ## Case results
 

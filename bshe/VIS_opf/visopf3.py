@@ -28,12 +28,12 @@ from opf import dcopf # base class
 
 # ---------------------------------------------------------
 
-class vis1(dcopf):
+class vis3(dcopf):
     """
     vis1: dcopf + fnadir/RoCof (ML linearization)
     """
 
-    def __init__(self, name='vis1', norm=None, nn=None, nn_num=64, dpe=0.01):
+    def __init__(self, name='vis3', norm=None, nn=None, nn_num=64, dpe=0.01):
         """
         Initialize high level parameters
 
@@ -278,6 +278,12 @@ class vis1(dcopf):
 
         self.mdl.addConstr(fnadir_pred >= - self.fnadir, name=f'fnadir_D')
         self.mdl.addConstr(fnadir_pred <= self.fnadir, name=f'fnadir_U')
+
+    def _add_pcons(self):
+        # add vsg power reserve constraints
+        self.gen
+
+
 
     def _get_GENI_GENII_key(self):
         gendict = self.gendict
