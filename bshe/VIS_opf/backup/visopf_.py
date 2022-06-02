@@ -1,13 +1,11 @@
 from os import PRIO_PGRP
 from statistics import fmean
-from unicodedata import name
 from andes.interop.pandapower import to_pandapower
 from andes.interop.pandapower import make_GSF, build_group_table
 import gurobipy as gb
 import pandas as pd
 import numpy as np
 import logging
-import torch
 logger = logging.getLogger(__name__)
 
 from opf import dcopf # base class
@@ -36,7 +34,7 @@ class vis1(dcopf):
     vis1: dcopf + fnadir/RoCof (ML linearization)
     """
 
-    def __init__(self, name='vis1', norm=None, nn=None, nn_num=64, dpe=0.01, rocof_lim = 0.01, nadir_lim=0.01):
+    def __init__(self, name='vis1', norm=None, nn=None, nn_num=64, dpe=0.01):
         """
         Initialize high level parameters
 
@@ -57,8 +55,8 @@ class vis1(dcopf):
         self.norm = norm 
         self.nn = nn
         self.nn_num = nn_num
-        self.fnadir = nadir_lim
-        self.rocof = rocof_lim
+        self.fnadir = 0.01 # 0.6Hz
+        self.rocof = 0.01 # 0.6Hz/s
         self.dpe = dpe
 
     def from_andes(self, ssa, typeII=None, Sbase=100):
@@ -215,6 +213,8 @@ class vis1(dcopf):
         Msys += sum(gendict[gen]['Sn'] * self.Mvsg[gen] for gen in GENII)
         Msys /= sum(gendict[gen]['Sn'] for gen in gendict.keys())
 
+        self.Msys_test = Msys
+
         Dsys = sum(gendict[gen]['Sn'] * gendict[gen]['D'] for gen in GENI)
         Dsys += sum(gendict[gen]['Sn'] * self.Dvsg[gen] for gen in GENII)
         Dsys /= sum(gendict[gen]['Sn'] for gen in gendict.keys())
@@ -226,8 +226,9 @@ class vis1(dcopf):
         Fsys /= sum(gendict[gen]['Sn'] for gen in GENI)
         
         # --- add gurobi var for fnadir ---
-        self.af = self.mdl.addVars(self.nn_num, name='af', vtype=gb.GRB.BINARY)
-        self.zf = self.mdl.addVars(self.nn_num, name='zf', vtype=gb.GRB.CONTINUOUS, obj=0, lb=[0]*self.nn_num)
+        self.af = self.mdl.addMVar((self.nn_num, ), name='af', vtype=gb.GRB.BINARY)
+        self.zf = self.mdl.addMVar((self.nn_num, ), name='zf', vtype=gb.GRB.CONTINUOUS, obj=0,
+                                lb=[0]*self.nn_num)
 
         # --- add constraints ---
         # --- RoCof con----
@@ -243,30 +244,22 @@ class vis1(dcopf):
 
         hdown = -100
         hup = 100
+        input = [Msys_norm, Dsys_norm, Fsys_norm, Rsys_norm]
 
         # nn hidden layer constraints
-        zf_bar = []
-        for i in range(self.nn_num):
-            zf_bar_temp = Msys_norm * self.nn['fw1'][0].iloc[i] + \
-                          Dsys_norm * self.nn['fw1'][1].iloc[i] + \
-                          Fsys_norm * self.nn['fw1'][2].iloc[i] + \
-                          Rsys_norm * self.nn['fw1'][3].iloc[i] + self.nn['fb1'][0].iloc[i]
-            zf_bar.append(zf_bar_temp)
-
-        self.mdl.addConstrs(self.zf[i] <= zf_bar[i] - hdown*(1-self.af[i]) for i in range(self.nn_num))
-        self.mdl.addConstrs(self.zf[i] >= zf_bar[i] for i in range(self.nn_num))
-        self.mdl.addConstrs(self.zf[i] <= hup * self.af[i] for i in range(self.nn_num))
+        self.mdl.addConstr(self.zf <= self.nn['fw1'].values@input + self.nn['fb1'].values.reshape(self.nn_num,)
+                                - hdown*(1 - self.af), name='fnn_1')
+        self.mdl.addConstr(self.zf >= self.nn['fw1'].values@input + self.nn['fb1'].values.reshape(self.nn_num,)
+                                                     , name='fnn_2')
+        self.mdl.addConstr(self.zf <= hup * self.af, name='fnn_3')
 
         # nn output (fnadir) constraints
-        fnadir_norm = sum(self.zf[i]*self.nn['fw2'][i].iloc[0] for i in range(self.nn_num)) + self.nn['fb2'].iloc[0]
-
-        # denormalize fnadir
-        fnadir_pred = fnadir_norm * fnorm['fnadir'].iloc[1] + fnorm['fnadir'].iloc[0]
-        
-        fnadir_pred *=self.dpe
-
-        self.mdl.addConstr( fnadir_pred >= - self.fnadir, name=f'fnadir_D')
-        self.mdl.addConstr( fnadir_pred <= self.fnadir, name=f'fnadir_U')
+        self.mdl.addConstr( (self.nn['fw1'].values.T @ self.zf + self.nn['fb2'].values)
+                             * fnorm['fnadir'].iloc[1] + fnorm['fnadir'].iloc[0]
+                             >= - self.fnadir, name=f'fnadir_D')
+        self.mdl.addConstr( (self.nn['fw1'].values.T @ self.zf + self.nn['fb2'].values)
+                             * fnorm['fnadir'].iloc[1] + fnorm['fnadir'].iloc[0]
+                             <= self.fnadir, name=f'fnadir_U')
 
 
     def _get_GENI_GENII_key(self):
@@ -295,27 +288,16 @@ class vis1(dcopf):
         """
         self.build()
         self.mdl.optimize()
+        # --- check if mdl is sovled ---
+        if not hasattr(self.pg[self.gen.idx[0]], 'X'):
+            logger.warning('vis1 has no valid resutls!')
+            pg = [0] * self.gen.shape[0]
+            pru = [0] * self.gen.shape[0]
+            prd = [0] * self.gen.shape[0]
+        else:
+            logger.warning('Successfully solve vis1.')
 
-        status = self.mdl.status
-        
-        if status == gb.GRB.UNBOUNDED:
-            print('The model cannot be solved because it is unbounded')
-
-        if status == gb.GRB.OPTIMAL:
-            # get system parameters
-            Msys, Dsys, Rsys, Fsys = self._get_sys_papra()
-            # get cost
-            cost = self.mdl.getObjective().getValue()
-            # get fnadir
-            nadir = self._get_nadir()
-            # get rocof
-            rocof = self.dpe / Msys
-
-            print('Total Cost: %g' % cost)
-            print('RoCof prediction: %g ; RoCof limit: %g' % (rocof, self.rocof))
-            print('Nadir prediction: %g ; Nadir limit %g' % (nadir, self.fnadir))
-    
-            # --- get optimization results --
+            # --- gather data --
             pg = []
             pru = []
             prd = []
@@ -329,11 +311,13 @@ class vis1(dcopf):
             for vsg_idx in vsg:
                 Mvsg.append(self.Mvsg[vsg_idx].X)
                 Dvsg.append(self.Dvsg[vsg_idx].X)
-    
-        # --- Output dataframe ---
+            # --- cost ---
+            self.res_cost = self.mdl.getObjective().getValue()
+            logger.info(f'Total cost={np.round(self.res_cost, 3)}')
+            
+        # --- build output table ---
         dcres = pd.DataFrame()
         dcres['gen'] = self.gen['idx']
-        dcres['Sn'] = self.gen['Sn']
         dcres['pg'] = pg
         dcres['pru'] = pru
         dcres['prd'] = prd
@@ -345,63 +329,4 @@ class vis1(dcopf):
         dcres.fillna(0, inplace=True)
         logger.info('Msys and Dsys are normlized by devise Sbase, transform to andes Sbase when do TDS')
 
-        Msys, Dsys, Rsys, Fsys = self._get_sys_papra()
-        sys_para = {'Msys': Msys, 'Dsys': Dsys, 'Rsys': Rsys, 'Fsys': Fsys}
-
-        return dcres, MDres, sys_para
-
-    def _get_sys_papra(self):
-        """
-        Get final system parameters
-
-        Parameters
-        ----------
-        fnorm : DataFrame
-            The DataFrame contains normalization factors for system variables.
-
-        """
-        # --- get normalization factors ---
-        gendict = self.gendict
-        GENI, GENII = self._get_GENI_GENII_key()
-        
-        # --- Synthetic M/D/F/R ---
-        Msys = sum(gendict[gen]['Sn'] * gendict[gen]['M'] for gen in GENI)
-        Msys += sum(gendict[gen]['Sn'] * self.Mvsg[gen].X for gen in GENII)
-        Msys /= sum(gendict[gen]['Sn'] for gen in gendict.keys())
-
-        Dsys = sum(gendict[gen]['Sn'] * gendict[gen]['D'] for gen in GENI)
-        Dsys += sum(gendict[gen]['Sn'] * self.Dvsg[gen].X for gen in GENII)
-        Dsys /= sum(gendict[gen]['Sn'] for gen in gendict.keys())
-
-        Rsys = sum(gendict[gen]['K'] / gendict[gen]['R'] * gendict[gen]['Sn'] for gen in GENI)
-        Rsys /= sum(gendict[gen]['Sn'] for gen in GENI)
-
-        Fsys = sum(gendict[gen]['K'] / gendict[gen]['R'] * self.pg[gen].X for gen in GENI)
-        Fsys /= sum(gendict[gen]['Sn'] for gen in GENI)
-
-        return Msys, Dsys, Rsys, Fsys
-
-    def _get_nadir(self,):
-        Msys, Dsys, Rsys, Fsys = self._get_sys_papra()
-        
-        # import network and norm parameters
-        fnn = torch.jit.load('net_fnadir.pt')
-        fnorm = pd.read_csv('fnorm.csv')
-
-        fmean = fnorm.iloc[0].values
-        fstd = fnorm.iloc[1].values
-
-        x = [Msys, Dsys, Rsys, Fsys]
-
-        # norm and predict
-        x = (x - fmean[0:4]) / fstd[0:4]
-        x = torch.tensor(x, dtype=torch.float32)
-
-        # denorm
-        nadir = fnn(x).detach().numpy() * fstd[4] + fmean[4]
-
-        nadir *= self.dpe
-
-        return nadir
-
-
+        return dcres, MDres

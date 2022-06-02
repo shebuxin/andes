@@ -67,8 +67,3 @@ print('\nThe following constraint(s) cannot be satisfied:')
 for c in m.getConstrs():
     if c.IISConstr:
         print('%s' % c.ConstrName)
-
-
-
-
-
