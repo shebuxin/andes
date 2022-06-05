@@ -111,12 +111,9 @@ class system:
         self.line = ssa_line[line_cols][ssa_line['trans'] == 0].reset_index(drop=True)
         self.load.sort_values(by='idx', inplace=True)
         if self.line['rate_a'].max() == 0:
-            self.line['rate_a'] = 2000
-            self.line['rate_b'] = 2000
-            self.line['rate_c'] = 2000
-        self.line['rate_a'] = self.line['rate_a'] / self.mva
-        self.line['rate_b'] = self.line['rate_b'] / self.mva
-        self.line['rate_c'] = self.line['rate_c'] / self.mva
+            self.line['rate_a'] = 20
+            self.line['rate_b'] = 20
+            self.line['rate_c'] = 20
 
         # --- GSF ---
         ssp = to_pandapower(ssa)

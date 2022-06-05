@@ -1,6 +1,3 @@
-from os import PRIO_PGRP
-from statistics import fmean
-from unicodedata import name
 from andes.interop.pandapower import to_pandapower
 from andes.interop.pandapower import make_GSF, build_group_table
 import gurobipy as gb
@@ -8,6 +5,7 @@ import pandas as pd
 import numpy as np
 import logging
 import torch
+import os
 logger = logging.getLogger(__name__)
 
 from opf import dcopf # base class
@@ -26,11 +24,15 @@ from opf import dcopf # base class
 
     3) vis3: dcopf + fnadir/RoCof (ML linearization)
                    + VSG power reserve (Final value theorem)
+
+
+    Auxiliary functions: 
+
+    1) loadnn: load network weights, bias and normalization parameters
+
 '''
 
-
-# ---------------------------------------------------------
-
+# ----------------------------- class: vis1 --------------------------------------
 class vis1(dcopf):
     """
     vis1: dcopf + fnadir/RoCof (ML linearization)
@@ -53,7 +55,7 @@ class vis1(dcopf):
         dpe: float
             delta Pe, power mismatch, or load change
         """
-        super().__init__(name)
+        super().__init__(name = name)
         self.norm = norm 
         self.nn = nn
         self.nn_num = nn_num
@@ -311,6 +313,7 @@ class vis1(dcopf):
             # get rocof
             rocof = self.dpe / Msys
 
+            print('--------------------- Results -------------------')
             print('Total Cost: %g' % cost)
             print('RoCof prediction: %g ; RoCof limit: %g' % (rocof, self.rocof))
             print('Nadir prediction: %g ; Nadir limit %g' % (nadir, self.fnadir))
@@ -381,7 +384,7 @@ class vis1(dcopf):
 
         return Msys, Dsys, Rsys, Fsys
 
-    def _get_nadir(self,):
+    def _get_nadir(self):
         Msys, Dsys, Rsys, Fsys = self._get_sys_papra()
         
         # import network and norm parameters
@@ -405,3 +408,254 @@ class vis1(dcopf):
         return nadir
 
 
+# ----------------------------- class: vis2 --------------------------------------
+class vis2(vis1):
+
+    def __init__(
+                    self, 
+                    name='vis2', 
+                    norm=None, nn=None, 
+                    nn_num=64, 
+                    dpe=0.01,
+                    rocof_lim = 0.01, 
+                    nadir_lim=0.01
+                ):
+
+        super().__init__(
+                            name = name, 
+                            norm = norm, 
+                            nn = nn, 
+                            nn_num = nn_num, 
+                            dpe = dpe, 
+                            rocof_lim = rocof_lim, 
+                            nadir_lim = nadir_lim
+                        )
+
+    def _build_cons(self):
+        super()._build_cons()
+        self._add_vsg_pcons()
+
+    def _add_vsg_pcons(self):
+
+        gendict = self.gendict
+        GENI, GENII = self._get_GENI_GENII_key()
+        
+        # Synthetic M/D/F/R
+        Msys = sum(gendict[gen]['Sn'] * gendict[gen]['M'] for gen in GENI)
+        Msys += sum(gendict[gen]['Sn'] * self.Mvsg[gen] for gen in GENII)
+        Msys /= sum(gendict[gen]['Sn'] for gen in gendict.keys())
+
+        Dsys = sum(gendict[gen]['Sn'] * gendict[gen]['D'] for gen in GENI)
+        Dsys += sum(gendict[gen]['Sn'] * self.Dvsg[gen] for gen in GENII)
+        Dsys /= sum(gendict[gen]['Sn'] for gen in gendict.keys())
+
+        Rsys = sum(gendict[gen]['K'] / gendict[gen]['R'] * gendict[gen]['Sn'] for gen in GENI)
+        Rsys /= sum(gendict[gen]['Sn'] for gen in GENI)
+
+        Fsys = sum(gendict[gen]['K'] / gendict[gen]['R'] * self.pg[gen] for gen in GENI)
+        Fsys /= sum(gendict[gen]['Sn'] for gen in GENI)
+
+        # norm M/D/F/R for nn input
+        pnorm = self.norm['pnorm']
+        Msys_norm = (Msys - pnorm['M'].iloc[0]) / pnorm['M'].iloc[1] # iloc[0] is mean, iloc[1] is std
+        Dsys_norm = (Dsys - pnorm['D'].iloc[0]) / pnorm['D'].iloc[1]
+        Fsys_norm = (Fsys - pnorm['Fg'].iloc[0]) / pnorm['Fg'].iloc[1]
+        Rsys_norm = (Rsys - pnorm['Rg'].iloc[0]) / pnorm['Rg'].iloc[1]
+
+        hdown = -100
+        hup = 100
+
+        # add vsg power constraint for each typeII(vsg) gen
+        for gen in GENII:
+            # build var
+            ap = self.mdl.addVars(self.nn_num, name=f'a_{gen}', vtype=gb.GRB.BINARY)
+            zp = self.mdl.addVars(self.nn_num, name=f'z_{gen}', vtype=gb.GRB.CONTINUOUS, obj=0, lb=[0]*self.nn_num)
+
+            # norm Mvsg and Dvsg
+            Mvsg_norm = (self.Mvsg[gen] - pnorm['Mvsg'].iloc[0]) / pnorm['Mvsg'].iloc[1]
+            Dvsg_norm = (self.Dvsg[gen] - pnorm['Dvsg'].iloc[0]) / pnorm['Dvsg'].iloc[1]
+
+            # add constraint
+            # i) nn hidden layer
+            zp_bar = []
+            for i in range(self.nn_num):
+                zp_bar_temp = Msys_norm * self.nn['pw1'][0].iloc[i] + \
+                              Dsys_norm * self.nn['pw1'][1].iloc[i] + \
+                              Fsys_norm * self.nn['pw1'][2].iloc[i] + \
+                              Rsys_norm * self.nn['pw1'][3].iloc[i] + \
+                              Mvsg_norm * self.nn['pw1'][4].iloc[i] + \
+                              Dvsg_norm * self.nn['pw1'][5].iloc[i] + \
+                              self.nn['pb1'][0].iloc[i]
+                zp_bar.append(zp_bar_temp)
+
+            self.mdl.addConstrs(zp[i] <= zp_bar[i] - hdown*(1-ap[i]) for i in range(self.nn_num))
+            self.mdl.addConstrs(zp[i] >= zp_bar[i] for i in range(self.nn_num))
+            self.mdl.addConstrs(zp[i] <= hup * ap[i] for i in range(self.nn_num))
+
+            # ii) nn output layer
+            pr_norm = sum(zp[i]*self.nn['pw2'][i].iloc[0] for i in range(self.nn_num)) + self.nn['pb2'].iloc[0]
+
+            pr_pred = pr_norm * pnorm['Ppeak'].iloc[1] + pnorm['Ppeak'].iloc[0]  # denorm
+
+            pr_pred *= self.dpe
+
+            # iii) add constraint
+            # Note: 
+            # both pru and pud are positive without considering sign
+            # but pr_red constains sign, so if dep<0, pr_red == - prd
+            if self.dpe > 0:
+                self.mdl.addConstr(self.pru[gen] == pr_pred, name=f'{gen}_vsg_pru')
+                self.mdl.addConstr(self.pg[gen] + pr_pred <= gendict[gen]['pmax'], name=f'{gen}_vsg_genU')
+            else:
+                self.mdl.addConstr(self.prd[gen] == -pr_pred, name=f'{gen}_vsg_prd')
+                self.mdl.addConstr(self.pg[gen] + pr_pred >= gendict[gen]['pmin'], name=f'{gen}_vsg_genD')
+
+            
+
+    def _get_vsgpr(self, Mvsg, Dvsg):
+        Msys, Dsys, Rsys, Fsys = self._get_sys_papra()
+        
+        # import network and norm parameters
+        pnn = torch.jit.load('net_Ppeak.pt')
+        pnorm = pd.read_csv('pnorm.csv')
+
+        pmean = pnorm.iloc[0].values
+        pstd = pnorm.iloc[1].values
+
+        x = [Msys, Dsys, Rsys, Fsys, Mvsg, Dvsg]
+
+        # norm and predict
+        x = (x - pmean[0:6]) / pstd[0:6]
+        x = torch.tensor(x, dtype=torch.float32)
+
+        # denorm
+        pr = pnn(x).detach().numpy() * pstd[6] + pmean[6]
+
+        pr *= self.dpe
+        return pr
+        
+    def get_res(self):
+        """
+        Get resutlts, can be used after mdl.optimize().
+
+        Returns
+        -------
+        DataFrame
+            The output DataFrame contains setpoints ``pg``
+
+        """
+        self.build()
+        self.mdl.optimize()
+
+        status = self.mdl.status
+        
+        if status == gb.GRB.UNBOUNDED:
+            print('The model cannot be solved because it is unbounded')
+
+        if status == gb.GRB.OPTIMAL:
+            # get system parameters
+            Msys, Dsys, Rsys, Fsys = self._get_sys_papra()
+            # get cost
+            cost = self.mdl.getObjective().getValue()
+            # get fnadir
+            nadir = self._get_nadir()
+            # get rocof
+            rocof = self.dpe / Msys
+
+            print('--------------------- Results -------------------')
+            print('Total Cost: %g' % cost)
+            print('RoCof prediction: %g ; RoCof limit: %g' % (rocof, self.rocof))
+            print('Nadir prediction: %g ; Nadir limit %g' % (nadir, self.fnadir))
+    
+            # --- get optimization results --
+            pg = []
+            pru = []
+            prd = []
+            for gen in self.gendict.keys():
+                pg.append(self.pg[gen].X)
+                pru.append(self.pru[gen].X)
+                prd.append(self.prd[gen].X)
+
+            idx = []
+            Sn_vsg = []
+            Mvsg = []
+            Dvsg = []
+            pg_vsg = []
+            pru_vsg = []
+            prd_vsg = []
+            pmax_vsg = []
+            pmin_vsg = []
+            _, vsg = self._get_GENI_GENII_key()
+            for vsg_idx in vsg:
+                idx.append(vsg_idx)
+                Sn_vsg.append(self.gendict[vsg_idx]['Sn'])
+                Mvsg.append(self.Mvsg[vsg_idx].X)
+                Dvsg.append(self.Dvsg[vsg_idx].X)
+                pg_vsg.append(self.pg[vsg_idx].X)
+                pru_vsg.append(self.pru[vsg_idx].X)
+                prd_vsg.append(self.prd[vsg_idx].X)
+                pmax_vsg.append(self.gendict[vsg_idx]['pmax'])
+                pmin_vsg.append(self.gendict[vsg_idx]['pmin'])
+
+        # --- Output results ---
+        pgres = pd.DataFrame()
+        pgres['gen'] = self.gen['idx']
+        pgres['Sn'] = self.gen['Sn']
+        pgres['pg'] = pg
+        pgres['pru'] = pru
+        pgres['prd'] = prd
+        pgres.fillna(0, inplace=True)
+
+        vsg_res = pd.DataFrame()
+        vsg_res['gen'] = idx
+        # vsg_res['Sn'] = Sn_vsg
+        vsg_res['Mvsg'] = Mvsg
+        vsg_res['Dvsg'] = Dvsg
+        vsg_res['pg_vsg'] = pg_vsg
+        vsg_res['pru_vsg'] = pru_vsg
+        vsg_res['prd_vsg'] = prd_vsg
+        vsg_res['pmax_vsg'] = pmax_vsg
+        vsg_res['pmin_vsg'] = pmin_vsg
+        logger.info('Msys and Dsys are normlized by devise Sbase, transform to andes Sbase when do TDS')
+
+        Msys, Dsys, Rsys, Fsys = self._get_sys_papra()
+        sys_para = {'Msys': Msys, 'Dsys': Dsys, 'Rsys': Rsys, 'Fsys': Fsys}
+
+        return pgres, vsg_res, sys_para
+
+# ----------------------- Auxiliary function ----------------------------------
+
+def loadnn(para_path):
+    # data path
+    dir_path = os.path.abspath('..')
+    data_path = dir_path + para_path
+
+    # norm data
+    fnorm = pd.read_csv(data_path + '/fnorm.csv')
+    pnorm = pd.read_csv(data_path + '/pnorm.csv')
+    norm = {'fnorm': fnorm, 'pnorm': pnorm }
+
+    # network parameters
+    fw1 = pd.read_csv(data_path + '/fw1.csv', header=None)
+    fw2 = pd.read_csv(data_path + '/fw2.csv', header=None)
+
+    fb1 = pd.read_csv(data_path + '/fb1.csv', header=None)
+    fb2 = pd.read_csv(data_path + '/fb2.csv', header=None)
+
+    pw1 = pd.read_csv(data_path + '/pw1.csv', header=None)
+    pw2 = pd.read_csv(data_path + '/pw2.csv', header=None)
+
+    pb1 = pd.read_csv(data_path + '/pb1.csv', header=None)
+    pb2 = pd.read_csv(data_path + '/pb2.csv', header=None)
+
+    nn = {
+        'fw1': fw1,
+        'fw2': fw2,       
+        'fb1': fb1,
+        'fb2': fb2,
+        'pw1': pw1,
+        'pw2': pw2,
+        'pb1': pb1,
+        'pb2': pb2,
+    }
+    return nn, norm

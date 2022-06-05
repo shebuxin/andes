@@ -106,6 +106,14 @@ $$
 - f_{nadir-lim} \le f_{nadir-pred} \le f_{nadir-lim}
 $$
 
+#### Output
+
+pg: gen Sn pg pru prd
+
+vsg: Sn Mvsg Dvsg pg pru prd pmax pmin
+
+system para
+
 ---
 
 # Code version
@@ -166,3 +174,35 @@ inplace = false, 则原表不变，返回一个修改过的表
 What if there variable are not included in constriants? i.e. the neural output of MLP, and some binary variables
 
 需要声明成gurobipy变量
+
+---
+
+**Q5:** 继承类之后，父类的函数可以直接调用，对吧？
+
+如果重名的函数，super继承，就会先调用子类的，然后运行新的code
+
+如果这时候父类有input呢？   子类继承的时候需要 加上 ***kwargs*
+
+**A5:** 可以直接调用
+
+在super._build_cons( ... 父类的input，self可省略)，子类的input直接补充在生成的函数里边
+
+如果父类有return呢？用super()._build_cons()吗？
+
+return super._build _cons( )
+
+总结：super( ) 放在函数主体，继承父类的code；放在return就是return父类的return
+
+super( ) 的继承是继承多层父类
+
+一般是 father_class.___init___( ) 单层继承
+
+**check:**
+
+1) https://zhuanlan.zhihu.com/p/412861897
+
+2. https://www.programiz.com/python-programming/methods/built-in/super
+
+**Q6:** super( )下来似乎和直接复制粘贴还是有区别，中间变量不能共享
+
+**Q7:** 子类的ini 的iniput 在用super( ) 的时候也需要赋进去

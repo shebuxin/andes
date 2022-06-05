@@ -101,7 +101,10 @@ TODO: Dynamic index under disturbances
 
 ### Base case: DC opf + RoCof
 
-Dpe max =
+
+
+
+**!!! TODO: change power limit of VSG while designing one hour case**
 
 # Q&A
 
