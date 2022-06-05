@@ -11,49 +11,75 @@ logger = logging.getLogger(__name__)
 from opf import dcopf # base class
 
 '''
+    Scope:
+    ------
     Vittual Inertia Scheduling (vis) solves economic dispatch problem
     consiering the dynamic frequency constriants and vsg invertia 
     support reserve.
+'''
 
+'''
+    Class:
+    ------
     The base class is inherited from 'dcopf' in opf.py
 
-    1) vis1: dcopf + fnadir/RoCof (ML linearization)
+    - vis1: dcopf + fnadir/RoCof (ML linearization)
 
-    2) vis2: dcopf + fnadir/RoCof (ML linearization)
-                   + VSG power reserve (ML linearization)
+    - vis2: dcopf + fnadir/RoCof (ML linearization)
+                  + VSG power reserve (ML linearization)
 
-    3) vis3: dcopf + fnadir/RoCof (ML linearization)
-                   + VSG power reserve (Final value theorem)
+    
+    - TODO vis3: dcopf + fnadir/RoCof (ML linearization)
+                       + VSG power reserve (Final value theorem)
 
 
-    Auxiliary functions: 
+    Functions: 
+    ----------
+    - loadnn: load network weights, bias and normalization parameters
 
-    1) loadnn: load network weights, bias and normalization parameters
 
+    Require files:
+    --------------
+    - net_fnadir.pt: neural network for fnadir prediction
+    - net_Ppeak.pt: neural network for vsg peak power reserve prediction
+    - fnorm.csv: neural netowrk input/output normalization parameters
+                  for frequency RoCof and nadir prediction
+    - pnorm.csv: neural network input/output normalization parameters
+                  for vsg ineertia support power reserve
 '''
 
 # ----------------------------- class: vis1 --------------------------------------
 class vis1(dcopf):
     """
-    vis1: dcopf + fnadir/RoCof (ML linearization)
+        vis1: dcopf + fnadir/RoCof (ML linearization)
     """
 
-    def __init__(self, name='vis1', norm=None, nn=None, nn_num=64, dpe=0.01, rocof_lim = 0.01, nadir_lim=0.01):
+    def __init__(
+                    self, name='vis1', 
+                    norm=None, 
+                    nn=None, 
+                    nn_num=64, 
+                    dpe=0.01, 
+                    rocof_lim = 0.01, 
+                    nadir_lim=0.01
+                ):
         """
-        Initialize high level parameters
-
-        Input
-        ---------
-        name: str
-            name
-        norm: dict
-            normalizatin parameter for fnadir and Pvsg prediction
-        nn: dict
-            neural network weight and bias
-        nn_num: integer
-            number of MLP nuerols (assume single layer MLP)
-        dpe: float
-            delta Pe, power mismatch, or load change
+            Input
+            ---------
+            - name: str
+                  name
+            - norm: dict
+                  normalizatin parameter for fnadir and Pvsg prediction
+            - nn: dict
+                  neural network weight and bias
+            - nn_num: integer
+                  number of MLP nuerols (assume single layer MLP)
+            - dpe: float
+                  delta Pe, power mismatch, or load change
+            - rocof_lim: float
+                  frequency RoCof limit
+            - nadir_lim: float
+                  frequency nadir limit
         """
         super().__init__(name = name)
         self.norm = norm 
@@ -65,17 +91,17 @@ class vis1(dcopf):
 
     def from_andes(self, ssa, typeII=None, Sbase=100):
         """
-        Initialize parameters from andes mdoel
+            Initialize parameters from andes mdoel
 
-        Input
-        ---------
-        ssa: andes model
-        typeII: list
-            idx of typeII generator (vsg inverter), i.g., ['PV_6', 'PV_7']
-        Sbase: float
-            system base power (MW)
+            Input
+            ---------
+            - ssa: andes model
+            - typeII: list
+                  idx of typeII generator (vsg inverter), i.g., ['PV_6', 'PV_7']
+            - Sbase: float
+                  system base power (MW)
+                  Sbase = 100MVA by default (andes default)
         """
-
         super().from_andes(ssa)
 
         # Define typeII generatiors, defalt typeI (type=1)
@@ -92,8 +118,7 @@ class vis1(dcopf):
         self.gen['Sn'] /= self.mva  # normalize Sn
         self.gen['K'] = 1
 
-        # load new parameter from andes
-        # Note: control parameters are normalized accroding to andes system base: Sbase = 100 MVA
+        # load dynamic parameters from andes
         genrow = ssa.GENROU.as_df()
         regc = ssa.REGCV1.as_df()
         tgov = ssa.TGOV1N.as_df()
@@ -106,8 +131,7 @@ class vis1(dcopf):
 
         self.gen = pd.merge(left=self.gen, right=genrow[['idx', 'M','D', 'R']], on='idx', how='left')
         self.gen = pd.merge(left=self.gen, right=regc[['idx', 'Mvsg', 'Dvsg']], on='idx', how='left')
-        # fill nan caused by merge
-        self.gen.fillna(0, inplace=True)
+        self.gen.fillna(0, inplace=True) # fill nan caused by pandas merge
 
         # norm control parameter according to Sbase
         self.gen['M'] /= self.scale
@@ -115,22 +139,42 @@ class vis1(dcopf):
         self.gen['R'] *= self.scale
         self.gen['Mvsg'] /= self.scale
         self.gen['Dvsg'] /= self.scale
+        logger.warning('Note: \ Control (dynamic) parameters are renormalized based on case Sbase rather then to andes base')
 
         self.update_dict()
 
     def build(self):
-        # self.data_check()
-
+        """
+            build optimization model
+            gurobi model is built as self parameter, and named as 'mdl'
+        """
         # --- build gurobi model ---
         self.update_dict()
         self.mdl = gb.Model(self.name)
-        self._build_vars()
-        self._build_obj()
+        self._build_vars() 
+        self._build_obj() 
         self._build_cons()
-
         logger.info('Successfully build vis0 model.')
 
     def _build_vars(self):
+        """
+            build gurobi variables
+            gurobi vars are set as self parameter
+
+            vars:
+            ------
+            - pg: gb continuous var
+                  generator active power output
+            - pru: gb continuous variable
+                   generator up power reserve
+            - prd: gb continuous var
+                   generator down power reserve
+            - Mvsg: gb continuous var
+                    vsg virtual inertia
+            - Dvsg: gb continuous var
+                    vsg virtual damping
+        """
+
         GEN = self.gendict.keys()
 
         # --- uncontrollable generators limit to p0 ---
@@ -144,12 +188,12 @@ class vis1(dcopf):
         # --- gen: pg ---
         self.pg = self.mdl.addVars(GEN, name='pg', vtype=gb.GRB.CONTINUOUS, obj=0,
                               ub=gencp.pmax.tolist(), lb=gencp.pmin.tolist())
-        # --- RegUp, RegDn --- !!! modify inverter reserve up and down in andes file, prd=0
+        # --- RegUp, RegDn ---
         self.pru = self.mdl.addVars(GEN, name='pru', vtype=gb.GRB.CONTINUOUS, obj=0,
                                ub=gencp.band.tolist(), lb=[0] * gencp.shape[0])
         self.prd = self.mdl.addVars(GEN, name='prd', vtype=gb.GRB.CONTINUOUS, obj=0,
                                ub=gencp.band.tolist(), lb=[0] * gencp.shape[0])
-        
+
         # --- Mvsg, Dvsg ---
         _, vsg = self._get_GENI_GENII_key()
 
@@ -161,6 +205,10 @@ class vis1(dcopf):
         print('Successfully build var.')
 
     def _build_obj(self):
+        """
+            build gurobi objective function
+            inclue both gen cost and power reserve cost
+        """
         GEN = self.gendict.keys()
         gendict = self.gendict
         costdict = self.costdict
@@ -182,6 +230,15 @@ class vis1(dcopf):
         print('Successfully build obj.')
 
     def _build_cons(self):
+        """
+            build gurobi constraints
+
+            constraints:
+            ------------
+            - power balance
+            - line limit
+            - frequency RoCof and nadir limit
+        """
         # --- var idx ---
         ptotal = self.load.p0.sum()
 
@@ -192,22 +249,30 @@ class vis1(dcopf):
         GEN = gendict.keys()
         LINE = linedict.keys()
 
-        # --- 01 power balance ---
+        # --- 1 power balance ---
         p_sum = sum(self.pg[gen] for gen in GEN)
         self.mdl.addConstr(p_sum == ptotal, name='PowerBalance')
 
-        # --- 02 line limits ---
+        # --- 2 line limits ---
         for line in LINE:
             lhs1 = sum(self.pg[gen] * gen_gsfdict[gen][line] for gen in GEN)
             self.mdl.addConstr(lhs1+linedict[line]['sup'] <= linedict[line]['rate_a'], name=f'{line}_U')
             self.mdl.addConstr(lhs1+linedict[line]['sup'] >= -linedict[line]['rate_a'], name=f'{line}_D')
 
-        # --- 03 dynamic frequency constraints --
+        # --- 3 dynamic frequency constraints --
         self._add_fcons()
 
         print('Successfully build cons.')
 
     def _add_fcons(self):
+        """
+            add frequency constraints, including:
+            - RoCof
+            - nadir: machine learning assisted linearization         
+                    Use multi-layer perceptron (MLP) 
+                        i) single hidden layer
+                        ii) without normalization layer, need manual normalization
+        """
 
         gendict = self.gendict
         GENI, GENII = self._get_GENI_GENII_key()
@@ -227,7 +292,7 @@ class vis1(dcopf):
         Fsys = sum(gendict[gen]['K'] / gendict[gen]['R'] * self.pg[gen] for gen in GENI)
         Fsys /= sum(gendict[gen]['Sn'] for gen in GENI)
         
-        # --- add gurobi var for fnadir ---
+        # --- build nn assisted normalizaton var (gurobi var) ---
         self.af = self.mdl.addVars(self.nn_num, name='af', vtype=gb.GRB.BINARY)
         self.zf = self.mdl.addVars(self.nn_num, name='zf', vtype=gb.GRB.CONTINUOUS, obj=0, lb=[0]*self.nn_num)
 
@@ -272,6 +337,15 @@ class vis1(dcopf):
 
 
     def _get_GENI_GENII_key(self):
+        """
+            get GENI and GENII key
+
+            return:
+            --------
+            - GENI: synchronous generator
+            - GENII: vsg
+        """
+
         gendict = self.gendict
 
         # --- filter Type II gen ---
@@ -291,9 +365,18 @@ class vis1(dcopf):
 
         Returns
         -------
-        DataFrame
-            The output DataFrame contains setpoints ``pg``
-
+        - total_cost: float
+        - predicted RoCof: float
+        - predicted fnadir: float
+        - dcres: DataFrame
+            output of synchronous generator
+            dcrec = 'gen_idx' 'Sn' 'pg' 'pru' 'prd'
+        - MDres: DataFrame
+            dynamics paremeters of vsg
+            MDres = 'gen_idx' 'Mvsg' 'Dvsg'
+        - sys_para: Dict
+            system parameters
+            sys_para = {'Msys': float, 'Dsys': float, 'Rsys': float, 'Fsys': float}
         """
         self.build()
         self.mdl.optimize()
@@ -385,6 +468,15 @@ class vis1(dcopf):
         return Msys, Dsys, Rsys, Fsys
 
     def _get_nadir(self):
+        """
+            get frequency nadir based on optimization results
+
+            network work parameters should be put in the same path, including:
+            - net_fnadir.pt: 
+                torch network for nadir prediction
+            - 'fnorm.csv':
+                input/output normalization parameters
+        """
         Msys, Dsys, Rsys, Fsys = self._get_sys_papra()
         
         # import network and norm parameters
@@ -410,7 +502,10 @@ class vis1(dcopf):
 
 # ----------------------------- class: vis2 --------------------------------------
 class vis2(vis1):
-
+    """
+        vis2: dcopf + fnadir/RoCof (ML linearization)
+                    + VSG power reserve (ML linearization)
+    """
     def __init__(
                     self, 
                     name='vis2', 
@@ -432,11 +527,27 @@ class vis2(vis1):
                         )
 
     def _build_cons(self):
+        """
+            add vsg power reserve constraints based on vis1
+
+            constraints:
+            ------------
+            1. power balance
+            2. line limit
+            3. frequency RoCof and nadir limit
+            4. vsg power reserve limit
+        """
         super()._build_cons()
         self._add_vsg_pcons()
 
     def _add_vsg_pcons(self):
-
+        """
+            add vsg power reserve constraints using machine learning assisted linearization         
+           
+            Use multi-layer perceptron (MLP) 
+                i) single hidden layer
+                ii) without normalization layer, need manual normalization
+        """
         gendict = self.gendict
         GENI, GENII = self._get_GENI_GENII_key()
         
@@ -511,8 +622,16 @@ class vis2(vis1):
                 self.mdl.addConstr(self.pg[gen] + pr_pred >= gendict[gen]['pmin'], name=f'{gen}_vsg_genD')
 
             
-
     def _get_vsgpr(self, Mvsg, Dvsg):
+        """
+            get vsg power reserve based on neural network
+
+            network work parameters should be put in the same path, including:
+            - net_Ppeak.pt: 
+                torch network for vsg peak power prediction
+            - 'pnorm.csv':
+                input/output normalization parameters
+        """
         Msys, Dsys, Rsys, Fsys = self._get_sys_papra()
         
         # import network and norm parameters
@@ -540,9 +659,18 @@ class vis2(vis1):
 
         Returns
         -------
-        DataFrame
-            The output DataFrame contains setpoints ``pg``
-
+        - total_cost: float
+        - predicted RoCof: float
+        - predicted fnadir: float
+        - pg_res: DataFrame
+            output of all the generators (including inverters)
+            pg_rec = ['gen' 'Sn' 'pg' 'pru' 'prd']
+        - vsg_res: DataFrame
+            output of vsg
+            vsg_rec = ['Sn' 'Mvsg' 'Dvsg' 'pg' 'pru' 'prd' 'pmax' 'pmin']
+        - sys_para: dict
+            system parameters
+            sys_para = {'Msys': float, 'Dsys': float, 'Rsys': float, 'Fsys': float}
         """
         self.build()
         self.mdl.optimize()
@@ -616,7 +744,7 @@ class vis2(vis1):
         vsg_res['prd_vsg'] = prd_vsg
         vsg_res['pmax_vsg'] = pmax_vsg
         vsg_res['pmin_vsg'] = pmin_vsg
-        logger.info('Msys and Dsys are normlized by devise Sbase, transform to andes Sbase when do TDS')
+        logger.warning('Msys and Dsys are normlized by devise Sbase, transform to andes Sbase when do TDS')
 
         Msys, Dsys, Rsys, Fsys = self._get_sys_papra()
         sys_para = {'Msys': Msys, 'Dsys': Dsys, 'Rsys': Rsys, 'Fsys': Fsys}
@@ -625,7 +753,10 @@ class vis2(vis1):
 
 # ----------------------- Auxiliary function ----------------------------------
 
-def loadnn(para_path):
+def loadnn(para_path=''):
+    """
+        load torch network and normalization parameters for optimization initalization
+    """
     # data path
     dir_path = os.path.abspath('..')
     data_path = dir_path + para_path
