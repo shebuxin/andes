@@ -109,14 +109,11 @@ class system:
                      'trans', 'tap', 'phi', 'rate_a', 'rate_b', 'rate_c']
         ssa_line = ssa.Line.as_df()
         self.line = ssa_line[line_cols][ssa_line['trans'] == 0].reset_index(drop=True)
-        self.load.sort_values(by='idx', inplace=True)
+        # self.line.sort_values(by='idx', inplace=True)
         if self.line['rate_a'].max() == 0:
-            self.line['rate_a'] = 2000
-            self.line['rate_b'] = 2000
-            self.line['rate_c'] = 2000
-        self.line['rate_a'] = self.line['rate_a'] / self.mva
-        self.line['rate_b'] = self.line['rate_b'] / self.mva
-        self.line['rate_c'] = self.line['rate_c'] / self.mva
+            self.line['rate_a'] = 20
+            self.line['rate_b'] = 20
+            self.line['rate_c'] = 20
 
         # --- GSF ---
         ssp = to_pandapower(ssa)
@@ -152,7 +149,6 @@ class system:
         self.cost['c2'] = 0
         self.cost['c1'] = 1
         self.cost['c0'] = 0
-        self.cost['cr'] = 0
         self.cost['cru'] = 0
         self.cost['crd'] = 0
 
@@ -416,7 +412,7 @@ class rted(dcopf):
                       for gen in GEN)
         # --- RegUp, RegDn cost ---
         cost_ru = sum(self.pru[gen] * costdict[gen]['cru'] for gen in GEN)
-        cost_rd = sum(self.pru[gen] * costdict[gen]['crd'] for gen in GEN)
+        cost_rd = sum(self.prd[gen] * costdict[gen]['crd'] for gen in GEN)
         self.obj = mdl.setObjective(expr=cost_pg + cost_ru + cost_rd, sense=gb.GRB.MINIMIZE)
         return mdl
 
@@ -592,12 +588,11 @@ class rted2(rted):
         # --- GEN capacity ---
         # --- filter Type II gen ---
         gendict_I = dict()
-        for (new_key, new_value) in gendict.items():
-            if new_value['type'] == 1:
-                gendict_I[new_key] = new_value
         gendict_II = dict()
         for (new_key, new_value) in gendict.items():
-            if new_value['type'] == 2:
+            if int(new_value['type']) == 1:
+                gendict_I[new_key] = new_value
+            elif int(new_value['type']) == 2:
                 gendict_II[new_key] = new_value
         GENI = gendict_I.keys()
         GENII = gendict_II.keys()
@@ -638,6 +633,7 @@ class rted3(rted2):
     Punishment coeeficient for insufficient SFR and load
     are set to 1000 and 2000 by default.
     """
+
     def __init__(self, name='rted3'):
         super().__init__(name)
         self.ks = 1000
@@ -695,12 +691,11 @@ class rted3(rted2):
         # --- GEN capacity ---
         # --- filter Type II gen ---
         gendict_I = dict()
-        for (new_key, new_value) in gendict.items():
-            if new_value['type'] == 1:
-                gendict_I[new_key] = new_value
         gendict_II = dict()
         for (new_key, new_value) in gendict.items():
-            if new_value['type'] == 2:
+            if int(new_value['type']) == 1:
+                gendict_I[new_key] = new_value
+            elif int(new_value['type']) == 2:
                 gendict_II[new_key] = new_value
         GENI = gendict_I.keys()
         GENII = gendict_II.keys()
@@ -716,7 +711,7 @@ class rted3(rted2):
                        name='PG_mim')
         mdl.addConstrs((self.pru[gen] <= gendict[gen]['prumax'] for gen in GENII),
                        name='PRU_max')
-        mdl.addConstrs((self.prd[gen] <= gendict[gen]['prdmax'] for gen in GENII),
+        mdl.addConstrs((self.prd[gen] >= -1 * gendict[gen]['prdmax'] for gen in GENII),
                        name='PRD_max')
 
         # --- AGC ramp limits ---

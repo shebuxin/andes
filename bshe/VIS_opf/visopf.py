@@ -15,7 +15,7 @@ from opf import dcopf # base class
     ------
     Vittual Inertia Scheduling (vis) solves economic dispatch problem
     consiering the dynamic frequency constriants and vsg invertia 
-    support reserve.
+    support power reserve.
 '''
 
 '''
@@ -28,10 +28,12 @@ from opf import dcopf # base class
     - vis2: dcopf + fnadir/RoCof (ML linearization)
                   + VSG power reserve (ML linearization)
 
-    
     - TODO vis3: dcopf + fnadir/RoCof (ML linearization)
                        + VSG power reserve (Final value theorem)
 
+    - TODO vis4: dcopf + fnadir/RoCof (ML linearization)
+                       + VSG power reserve
+                       + SG primiary frequency regulation reserve
 
     Functions: 
     ----------
@@ -55,7 +57,8 @@ class vis1(dcopf):
     """
 
     def __init__(
-                    self, name='vis1', 
+                    self, 
+                    name='vis1', 
                     norm=None, 
                     nn=None, 
                     nn_num=64, 
