@@ -211,7 +211,7 @@ A8: agc parcipation factor power
 
 Q9: How to set agc signal to vsg gen?
 
-A9: 
+A9:
 
 ---
 
@@ -234,3 +234,10 @@ PV profile, check fangxing's paper
 Q11: save final TDS results to file?
 
 A11: In progress ...
+
+
+Q12: difference of pandapower sn_mva and andes sn_mva?
+
+
+
+---
