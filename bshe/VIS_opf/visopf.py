@@ -203,9 +203,9 @@ class vis1(dcopf):
         _, vsg = self._get_GENI_GENII_key()
 
         self.Mvsg = self.mdl.addVars(vsg, name='Mvsg', vtype=gb.GRB.CONTINUOUS, obj=0,
-                               ub=[5]*len(vsg), lb=[0]*len(vsg))
+                               ub=[5]*len(vsg), lb=[2]*len(vsg))
         self.Dvsg = self.mdl.addVars(vsg, name='Dvsg', vtype=gb.GRB.CONTINUOUS, obj=0,
-                               ub=[3]*len(vsg), lb=[0]*len(vsg))
+                               ub=[3]*len(vsg), lb=[1]*len(vsg))
 
         print('Successfully build var.')
 
