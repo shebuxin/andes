@@ -28,6 +28,8 @@ from opf import dcopf # base class
     - vis2: dcopf + fnadir/RoCof (ML linearization)
                   + VSG power reserve (ML linearization)
 
+    - vis2_tds: add some TDS function based on vis2
+
     - TODO vis3: dcopf + fnadir/RoCof (ML linearization)
                        + VSG power reserve (Final value theorem)
 
@@ -142,7 +144,7 @@ class vis1(dcopf):
         self.gen['R'] *= self.scale
         self.gen['Mvsg'] /= self.scale
         self.gen['Dvsg'] /= self.scale
-        logger.warning('Note: \ Control (dynamic) parameters are renormalized based on case Sbase rather then to andes base')
+        logger.warning('Note: Control (dynamic) parameters are renormalized based on case Sbase rather then to andes base')
 
         self.update_dict()
 
@@ -753,6 +755,59 @@ class vis2(vis1):
         sys_para = {'Msys': Msys, 'Dsys': Dsys, 'Rsys': Rsys, 'Fsys': Fsys}
 
         return pgres, vsg_res, sys_para
+
+
+class vis2_tds(vis2):
+    """
+        vis2_tds: add TDS functions to vis2
+    """
+    def __init__(
+                    self, 
+                    name='vis2_tds',
+                    norm=None, nn=None, 
+                    nn_num=64, 
+                    dpe=0.01,
+                    rocof_lim = 0.01, 
+                    nadir_lim=0.01
+                ):
+
+        super().__init__(
+                            name = name, 
+                            norm = norm, 
+                            nn = nn, 
+                            nn_num = nn_num, 
+                            dpe = dpe, 
+                            rocof_lim = rocof_lim, 
+                            nadir_lim = nadir_lim
+                        )
+
+    def to_dcopf(self):
+        """
+            Convert to DCOPF model.
+
+            Returns
+            -------
+            dcopf: dcopf
+                The output dcopf class.
+        """
+        ssd = dcopf()
+        ssd.bus = self.bus
+        ssd.gen = self.gen
+        ssd.load = self.load
+        ssd.line = self.line
+        ssd.gen_gsf = self.gen_gsf
+        ssd.cost = self.cost
+        return ssd
+
+    def set_p_pre(self):
+        """
+            Get ``p_pre`` based DCOPF model.
+        """
+        ssd = self.to_dcopf()
+        self.gen['p_pre'] = ssd.get_res()['pg']
+        logger.warning('Successfully set p_pre based on DCOPF results')
+
+
 
 # ----------------------- Auxiliary function ----------------------------------
 

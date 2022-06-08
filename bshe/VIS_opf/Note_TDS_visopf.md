@@ -68,17 +68,9 @@ for time in range(end_time):
    - ini load
 6. TSD loop
 
-TODO:
-
-add to dc
-
-add M, D
-
-add set_ppre
-
 ---
 
-# Code Q&A
+# Code Q&A 1
 
 Q1: the functionality of to_dcopf( )? returns a gurobi attribute, and can be directly solved?
 
@@ -144,6 +136,101 @@ Q9: go through AGC code
 
 A9: andes build in AGC block
 
+# Code Q&A 2
+
+Q1: Co-sim 里的Benchmark结果似乎不一样
+
+A1: 多解造成的，cost需要设置的不一样
+
 ---
 
-Q10: Plan A is better?
+Q2: relationship between gurobi and pandapower
+
+A2: gorubi solves the reserve capacity using dcopf, and change the power limit in pandapower
+
+pandapower AC opf package include:
+
+- dcopf
+- acopf → line limit, ramping limit
+
+---
+
+Q3: link table doesn't include vsg gen
+
+Q3: solved.  ref pdpower.py
+
+---
+
+Q4: function *get_pe*? Why not get the pe of GENROW?
+
+get pe or Pref2 in REGCV1?
+
+Q5: get_pre is use to limit ramping limit
+
+ignore it if not consier ramping limit
+
+---
+
+Q5: return of get load function
+
+    - dpd_u: regu up reauirement, for sfr reserve
+
+    - dpd_d: regu down requirement, for sfr reserve
+
+    - load_exp: load forecasted value
+
+vsg reserve can match dpd_u and dpd_d
+
+ref def_sfr in jwang's code
+
+---
+
+Q6: what is step change interval?
+
+intv_step = 100 #  step change; smooth the setpoitns
+
+---
+
+Q7: What is runopp_map ?
+A7: pandapwoer uses dataframe index, i.g. 0, 1, 2 ....
+andes uses idx to call variable
+
+runopp_map forces pandapower to calll variable using andes idx
+
+---
+
+Q8: what is "bu" and "bd" in rted get_res( ) and used in AGC?
+
+A8: agc parcipation factor power
+
+... set more room for sfr
+
+把一个gen的cost调整最大，用来承接 AGC mismatch
+
+---
+
+Q9: How to set agc signal to vsg gen?
+
+A9: 
+
+---
+
+Q10: 如果相邻两次的dispatch结果相差较大，影响TDS吗？
+
+比如：governor的ref改的过大，这在vsg capacity变化时会比较明显
+
+A 10: To test
+
+smooth in 100s
+
+5% total load
+
+PV profile, check fangxing's paper
+
+**set large disturbance around 150s in ED to avoid the smooth progress**
+
+---
+
+Q11: save final TDS results to file?
+
+A11: In progress ...
