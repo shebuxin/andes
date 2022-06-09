@@ -16,6 +16,8 @@ replace SG connected to ***bus 30, 35, 37, and 38***
 
 ## Typical parameters
 
+### v1
+
 Known andes base value: $S_{andes}$ = 100 MVA, and device base ss.config.mva = 1000 MVA
 
 Assume dynamic paramteters (using device base):
@@ -23,7 +25,7 @@ Assume dynamic paramteters (using device base):
 $$
 M_{vsg} \in [0,5],D_{vsg} \in [0,3] \\
 
-RoCof_{max} = 0.01 → 0.6Hz/s \\
+RoCof_{max} = 0.033 → 2Hz/s \\
 
 fnadir_{max} = 0.01 → 0.6Hz
 $$
@@ -52,11 +54,69 @@ $$
 
 ---
 
-TODO:
+### v2
 
-gorubypy 能不能看哪些约束bounded?
+Known andes base value: $S_{andes}$ = 100 MVA, and device base ss.config.mva = 1000 MVA
 
-## Case results
+Assume dynamic paramteters (using device base):
+
+$$
+M_{vsg} \in [2, 6],D_{vsg} \in [0.5,3] \\
+
+RoCof_{max} = 0.033 → 2Hz/s \\
+
+fnadir_{max} = 0.01 → 0.6Hz
+$$
+
+**... TODO: System synthetic parameters**
+
+
+# Dyanmic results Andes
+
+Andes RoCof observer parameter:
+
+$$
+T_f = 0.002 \\
+   T_w = 0.02 \\
+   Tr = 0.001 \\
+$$
+
+**Scenario 1:**
+
+$$
+M_{vsg} = 8 \\
+   D_{vsg} = 1
+$$
+
+Dynamic response in Andes:
+
+| Load change | Nadir  | RoCof    |
+| ----------- | ------ | -------- |
+| 1.06 p0    | 0.22Hz | 2.5Hz/s  |
+| 1.04 p0     | 0.14Hz | 1.6Hz/s  |
+| 1.02 p0     | 0.07Hz | 0.75Hz/s |
+
+**Scenario 2:**
+
+$$
+M_{vsg} = 2 \\
+   D_{vsg} = 0.5
+$$
+
+Dynamic response in Andes:
+
+| Load change | Nadir   | RoCof    |
+| ----------- | ------- | -------- |
+| 1.06 p0    | 0.26Hz  | 2.5Hz/s  |
+| 1.04 p0     | 0.16Hz  | 1.6Hz/s  |
+| 1.02 p0     | 0.085Hz | 0.77Hz/s |
+
+Quick observation:
+
+1. VSG has large deviation than SG under the same system and  disturbance.
+2. VSG parameters have more impacts on Nadir than RoCof when it comes to VSG gen.
+
+# Optimization results
 
 ### Base case: DC opf
 
@@ -100,9 +160,6 @@ Optimal objective  60.064
 TODO: Dynamic index under disturbances
 
 ### Base case: DC opf + RoCof
-
-
-
 
 **!!! TODO: change power limit of VSG while designing one hour case**
 
