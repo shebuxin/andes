@@ -2,7 +2,7 @@
 import os
 import andes
 import pandas as pd
-
+import matplotlib.pyplot as plt
 
 def get_andes_case(case_path):
     '''
@@ -80,4 +80,62 @@ def get_load(data_path, load_time=10):
     d_syn['sload'][1:100] = None
     d_syn['sload'] = d_syn['sload'].interpolate(method='polynomial', order=3)
 
-    return d_syn
+    ystep = list(d_exp['sload'])
+    ystep.insert(0, d_exp['sload'].iloc[0])
+
+    # --- plot load curve ---
+    fig_load, ax_load = plt.subplots(figsize=(5, 4))
+
+    # tds load profile
+    ax_load.plot(
+                    d_syn['time'], 
+                    d_syn['sload'], 
+                    color='tab:blue', 
+                    linestyle='-'
+                )
+    # ED load profile
+    ax_load.step(
+                    range(0,3900,300), 
+                    ystep, 
+                    color='tab:blue', 
+                    linestyle='--'
+                )
+                
+    ax_load.set_xlim([0, 3600])
+    ax_load.legend(['Actual load', 'Forecasted load'])
+    ax_load.set_title(f'Load profile at {caseH}H')
+    ax_load.set_ylabel('ratio')
+    ax_load.set_xlabel('Time [s]')
+
+    return d_syn, fig_load
+
+def disturbance(d_syn, idx_ed, intv_ed, vsg_num=4):
+    """
+        get disturbance
+        
+        return:
+        ----------
+        - load_exp: load forecasted value
+        - dpe: delta load change
+        - dvsg: vsg gen capacity change
+    """
+    idx0 = idx_ed * intv_ed # start index
+    idx1 = idx0 + intv_ed   # end index
+
+    # --- load change ---
+    load = d_syn['sload'].iloc[idx0 : idx1] 
+    load_exp = load.mean()
+
+    # --- dpe ---
+    if idx_ed == 0:
+        dpe = 0
+    else:
+        load_early = d_syn['sload'].iloc[idx0 - intv_ed : idx1 - intv_ed]
+        load_exp_early = load_early.mean()
+        dpe = load_exp - load_exp_early
+
+    # --- vsg gen capacity change ---
+    # TODO: add vsg gen capacity change
+    dvsg = [0] * vsg_num
+
+    return load_exp, dpe, dvsg
