@@ -1,6 +1,7 @@
 
 import os
 import andes
+import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
@@ -40,7 +41,7 @@ def get_andes_case(case_path):
 
     return ssa
 
-def get_load(data_path, load_time=10):
+def get_load(data_path, load_time=10, l_rate=1, scale=1):
     '''
         Get normalized load profile
     
@@ -49,11 +50,17 @@ def get_load(data_path, load_time=10):
         data_path: str
         load_time: int
             The time of load profile, default is 10, can also be 18
+        l_rate: float
+            initial load rate
+        scale: float
+            scale exisitng load profile
 
         returns:
         --------
         load data: pandas dataframe
             normalized by mean value
+        load fig: load figure
+        dpe: delta_Pe based on load profile
     '''
 
     dir_path = os.path.abspath('..')
@@ -61,15 +68,16 @@ def get_load(data_path, load_time=10):
     d_syn = pd.read_csv(path)
 
     caseH = load_time
+
     # the coefficient can be adjusted to fit the case
     if caseH == 10: # load prfile at 10am
-        d_syn['sload'] = 1*(d_syn['ha10'] - d_syn['ha10'].min()) / d_syn['ha10'].min() + 1
+        d_syn['sload'] = scale *(d_syn['ha10'] - d_syn['ha10'].min()) / d_syn['ha10'].min() + 1
     if caseH == 18: # load prfile at 6pm
-        d_syn['sload'] = 2*(d_syn['ha18'] - d_syn['ha18'].min()) / d_syn['ha18'].min() + 1
+        d_syn['sload'] = scale *(d_syn['ha18'] - d_syn['ha18'].min()) / d_syn['ha18'].min() + 1
 
     # smooth
     d_syn['sload'] = d_syn['sload'].rolling(20).mean()
-        
+    
     # calculate expected load
     step = 300
     d_exp = d_syn.groupby(d_syn.index // step).mean()
@@ -89,14 +97,15 @@ def get_load(data_path, load_time=10):
     # tds load profile
     ax_load.plot(
                     d_syn['time'], 
-                    d_syn['sload'], 
+                    np.array(d_syn['sload']) * l_rate, 
                     color='tab:blue', 
                     linestyle='-'
                 )
+
     # ED load profile
     ax_load.step(
                     range(0,3900,300), 
-                    ystep, 
+                    np.array(ystep) * l_rate, 
                     color='tab:blue', 
                     linestyle='--'
                 )
@@ -104,10 +113,13 @@ def get_load(data_path, load_time=10):
     ax_load.set_xlim([0, 3600])
     ax_load.legend(['Actual load', 'Forecasted load'])
     ax_load.set_title(f'Load profile at {caseH}H')
-    ax_load.set_ylabel('ratio')
+    ax_load.set_ylabel('Load rate')
     ax_load.set_xlabel('Time [s]')
 
-    return d_syn, fig_load
+    dpe = np.array(d_exp['sload']) - 1 # with base p0
+    dpe *= l_rate
+
+    return d_syn, fig_load, dpe
 
 def disturbance(d_syn, idx_ed, intv_ed, vsg_num=4):
     """

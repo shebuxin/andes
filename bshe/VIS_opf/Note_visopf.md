@@ -89,6 +89,7 @@ generator output:
 | VSG power reserve: (upreserve and down reserve) |     |                  |                                                                                           |       |
 | RoCof                                           |     |                  |                                                                                           | √    |
 | Nadir                                           |     |                  |                                                                                           | √    |
+| SG power reserve                                |     |                  |                                                                                           |       |
 
 RoCo constraint:
 
@@ -105,6 +106,8 @@ frequency nadir constraint:
 $$
 - f_{nadir-lim} \le f_{nadir-pred} \le f_{nadir-lim}
 $$
+
+Constraint (4) is the system wide regulation reserve requirement. The regulation reserve requirement can be determined based on historical statistics or rules of thumb described in Table I.
 
 #### Output
 
