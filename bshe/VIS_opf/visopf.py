@@ -145,7 +145,8 @@ class vis1(dcopf):
         self.gen['Mvsg'] /= self.scale
         self.gen['Dvsg'] /= self.scale
         logger.warning('Note: Control (dynamic) parameters are renormalized based on case Sbase rather then to andes base')
-
+        
+        self.data_check()
         self.update_dict()
 
     def build(self):

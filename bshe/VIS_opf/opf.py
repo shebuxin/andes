@@ -105,6 +105,7 @@ class dcbase:
         pq_cols = ['idx', 'u', 'name', 'bus', 'Vn', 'p0', 'q0',
                    'vmax', 'vmin', 'owner']
         self.load = ssa.PQ.as_df()[pq_cols]
+        self.load['sf'] = 1  # scaling factor
         self.load.sort_values(by='idx', inplace=True)
 
         # --- line ---
@@ -141,7 +142,30 @@ class dcbase:
         self.line['sup'] = np.matmul(gsf_matrix, sup2.net.values)
 
         # --- update dict ---
-        self.update_dict(model=None)
+        self.data_check()
+        self.update_dict()
+
+    def data_check(self):
+        """
+        Check data consistency.
+        """
+        if not hasattr(self, 'cost'):
+            self._default_cost()
+        if not hasattr(self.cost, 'cru'):
+            self.cost['cru'] = 0
+            logger.warning('No RegUp cost data (``cru`` in ``cost``), set to 0.')
+        if not hasattr(self.cost, 'crd'):
+            self.cost['crd'] = 0
+            logger.warning('No RegDn cost data(``crd`` in ``cost``), set to 0.')
+        if not hasattr(self, 'du'):
+            self.du = 0
+            logger.warning('No RegUp requirement data (``du``), set to 0.')
+        if not hasattr(self, 'dd'):
+            self.dd = 0
+            logger.warning('No RegDn requirement data (``dd``), set to 0.')
+        if not hasattr(self.gen, 'ramp5'):
+            self.gen['ramp5'] = 20
+            logger.warning('No ramp AGC data (``ramp5`` in ``gen``), set to 20.')
 
     def _default_cost(self):
         """
@@ -351,6 +375,8 @@ class rted(dcopf):
         """
         Check data consistency.
         """
+        if not hasattr(self, 'cost'):
+            self._default_cost()
         if not hasattr(self.cost, 'cru'):
             self.cost['cru'] = 0
             logger.warning('No RegUp cost data (``cru`` in ``cost``), set to 0.')
