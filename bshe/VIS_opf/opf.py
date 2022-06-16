@@ -7,9 +7,9 @@ import logging
 logger = logging.getLogger(__name__)
 
 # By jinning Wang
-class system:
+class dcbase:
     """
-    Base class of jams system.
+    base class of dcopf.
 
     Parameters
     ----------
@@ -32,31 +32,34 @@ class system:
         Cost data.
     """
 
-    def __init__(self, name='system'):
+    def __init__(self, name='dcbase'):
         self.name = name
 
     def update_dict(self, model=None):
         """
         Update model DataFrame into model dict.
-
         Parameters
         ----------
         model : list
             list of models that need to be updated.
             If None is given, update all models.
         """
-        # --- validity check ---
-        if not hasattr(self, 'cost'):
-            self._default_cost()
-
         # --- build dict ---
         if not model:
             mdl_list = ['bus', 'gen', 'line', 'gen_gsf', 'cost']
         else:
             mdl_list = model
         for mdl in mdl_list:
-            mdl_df = getattr(self, mdl).copy()
-            mdl_df.set_index(['idx'], inplace=True)
+            mdl_df = getattr(self, mdl)
+            if mdl == 'line':
+                sup = pd.DataFrame()
+                sup['bus'] = self.bus['idx']
+                sup = sup.merge(self.load[['bus', 'p0', 'sf']],
+                                on='bus', how='left').fillna(0).rename(columns={'p0': 'load'})
+                sup['net'] = (-1 * sup.load * sup.sf)
+                sup2 = sup[['bus', 'net']].groupby('bus').sum()
+                mdl_df['sup'] = np.matmul(self.gsf_matrix, sup2.net.values)
+            mdl_df.index = mdl_df.index
             setattr(self, mdl+'dict', mdl_df.T.to_dict())
 
     def from_andes(self, ssa):
@@ -153,7 +156,7 @@ class system:
         self.cost['crd'] = 0
 
 
-class dcopf(system):
+class dcopf(dcbase):
     """
     DCOPF class.
 

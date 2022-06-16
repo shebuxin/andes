@@ -202,12 +202,18 @@ class vis1(dcopf):
         # --- Mvsg, Dvsg ---
         _, vsg = self._get_GENI_GENII_key()
 
-        self.Mvsg = self.mdl.addVars(vsg, name='Mvsg', vtype=gb.GRB.CONTINUOUS, obj=0,
-                               ub=[10]*len(vsg), lb=[3]*len(vsg))
-        self.Dvsg = self.mdl.addVars(vsg, name='Dvsg', vtype=gb.GRB.CONTINUOUS, obj=0,
-                               ub=[10]*len(vsg), lb=[5]*len(vsg))
+        # self.Mvsg = self.mdl.addVars(vsg, name='Mvsg', vtype=gb.GRB.CONTINUOUS, obj=0,
+        #                        ub=[10]*len(vsg), lb=[3]*len(vsg))
+        # self.Dvsg = self.mdl.addVars(vsg, name='Dvsg', vtype=gb.GRB.CONTINUOUS, obj=0,
+        #                        ub=[10]*len(vsg), lb=[5]*len(vsg))
 
-        print('Successfully build var.')
+        # specify vsg inertia and damping for ieee39 
+        self.Mvsg = self.mdl.addVars(vsg, name='Mvsg', vtype=gb.GRB.CONTINUOUS, obj=0,
+                               ub=[6, 8, 7, 10], lb=[2, 3, 0, 4])
+        self.Dvsg = self.mdl.addVars(vsg, name='Dvsg', vtype=gb.GRB.CONTINUOUS, obj=0,
+                               ub=[5.8, 4, 5, 8], lb=[2, 2.3, 3, 4])
+
+        # print('Successfully build var.')
 
     def _build_obj(self):
         """
@@ -232,7 +238,7 @@ class vis1(dcopf):
         cost_vsg = cost_ru + cost_rd
 
         self.obj = self.mdl.setObjective(expr=cost_pg + cost_vsg, sense=gb.GRB.MINIMIZE)
-        print('Successfully build obj.')
+        # print('Successfully build obj.')
 
     def _build_cons(self):
         """
@@ -267,7 +273,7 @@ class vis1(dcopf):
         # --- 3 dynamic frequency constraints --
         self._add_fcons()
 
-        print('Successfully build cons.')
+        # print('Successfully build cons.')
 
     def _add_fcons(self):
         """
