@@ -209,9 +209,9 @@ class vis1(dcopf):
 
         # specify vsg inertia and damping for ieee39 
         self.Mvsg = self.mdl.addVars(vsg, name='Mvsg', vtype=gb.GRB.CONTINUOUS, obj=0,
-                               ub=[6, 8, 10, 5.8], lb=[2, 3, 1.5, 4])
+                               ub=[8, 8, 8, 8], lb=[7.9, 7.9, 7.9, 7.9])
         self.Dvsg = self.mdl.addVars(vsg, name='Dvsg', vtype=gb.GRB.CONTINUOUS, obj=0,
-                               ub=[5.8, 4, 5, 8], lb=[3, 3, 3, 3])
+                               ub=[4.1, 4.1, 4.1, 4.1], lb=[4, 4, 4, 4])
 
         # print('Successfully build var.')
 
