@@ -75,6 +75,8 @@ def get_load(data_path, load_time=10, l_rate=1, scale=1):
     if caseH == 18: # load prfile at 6pm
         d_syn['sload'] = scale *(d_syn['ha18'] - d_syn['ha18'].min()) / d_syn['ha18'].min() + 1
 
+    d_syn['sload'][2400:3000] *= 1.028
+
     # smooth
     d_syn['sload'] = d_syn['sload'].rolling(20).mean()
     

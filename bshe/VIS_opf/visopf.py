@@ -211,7 +211,7 @@ class vis1(dcopf):
         self.Mvsg = self.mdl.addVars(vsg, name='Mvsg', vtype=gb.GRB.CONTINUOUS, obj=0,
                                ub=[6, 8, 10, 5.8], lb=[2, 3, 1.5, 4])
         self.Dvsg = self.mdl.addVars(vsg, name='Dvsg', vtype=gb.GRB.CONTINUOUS, obj=0,
-                               ub=[5.8, 4, 5, 8], lb=[3, 3, 3, 3])
+                               ub=[5.8, 4, 5, 8], lb=[3, 2.5, 3, 2])
 
         # print('Successfully build var.')
 
