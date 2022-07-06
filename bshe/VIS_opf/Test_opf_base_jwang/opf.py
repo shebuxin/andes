@@ -6,7 +6,7 @@ import numpy as np
 import logging
 logger = logging.getLogger(__name__)
 
-
+# By jinning Wang
 class system:
     """
     Base class of jams system.
