@@ -11,9 +11,21 @@
 # Problem 20230904
 
 1. cannot define lb and ub of cvxpy variables
+   **cvx doesnot support this functionality**
 2. cannot call value with ssp.LDOPF.om.mdl, can call with ssp.LDOPF.om
+   **we can extract value of the decision variable using ssp.LDOPF.om (Note, the original cvx decision variable) after the new problem is solved
+   Cannot call it suing ssp.LDOPF, because it is the routine variables values of the original model**
 3. check the dimension of x and np.array([1, 2]) and x @ np.array([1, 2])
+   **use * for coefficient multiply, and use @ for matrix multiply (incluiding 1dim matrix multipy 1 dim matrix)**
+4. How to prepare a new case
+   and load it using ams
+   **keep topology list and add Gcost data**
 
+# Problem 20230906
+
+1. for main_vis_v0: the dispatch results are different from those after modification
+2. cannot call gurobi as solver
+   what is the default solver?
 
 # Tips
 
