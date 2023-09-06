@@ -24,6 +24,9 @@
 # Problem 20230906
 
 1. for main_vis_v0: the dispatch results are different from those after modification
+   the results are wired, PV_10 and PV_11 are 0
+   check the formulated obj
+   check the coefficients (may be not matching the idx)
 2. cannot call gurobi as solver
    what is the default solver?
 
