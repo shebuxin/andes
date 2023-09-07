@@ -33,3 +33,14 @@
 # Tips
 
 check new obj formulation and compare it with the original ams LDOPF
+
+**Problem summary**
+
+1. variable idx issue: c2 and c1 doesn't match gen variable if the total number of gen is large than 10
+2. cannot call gurobi as a solver due to c++ issue
+
+**Some expected features**
+
+* be able to freely add new decision variables, new constraints, and modify the existing constraints
+* be able to define modify objective function, or defined customized function based on existing obj
+* be able to include new parameters and easily call them
