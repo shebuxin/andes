@@ -46,3 +46,14 @@ check new obj formulation and compare it with the original ams LDOPF
 * be able to freely add new decision variables, new constraints, and modify the existing constraints
 * be able to define modify objective function, or defined customized function based on existing obj
 * be able to include new parameters and easily call them
+
+
+
+
+# NN optimization debug note
+
+hup and hdown will imapct the optimization results
+
+hup = 1000 (hdown = -1000) will result in infeasibility
+
+Too large inertia cost coefficient will also results in infeasibility
