@@ -1,3 +1,19 @@
+# # 20230914 Note
+
+After transferring to gurobi, the NN linearization could be solved.
+
+The problem is the NN prediction accuracy. Both for RoCof, nadir, and eigenvalue
+
+    M/D will be solved to lower boundary, then check the NN prediction, they satisfy the constriants
+
+So need to 1) **generate more typical unstable scenarios**, and also 2) **check the RoCof at lower boundary (check generated data)**
+
+whether to include pg as data input
+
+    generate two group of data: one with pg; and the other without pg
+
+Also, remember to change the upper boundary of VSG, and lower boundary of slack bus, when the NN linearization constraints take effect, pg will be solved to boundary too.
+
 # Q&A
 
 1. general architecture of AMS
@@ -46,9 +62,6 @@ check new obj formulation and compare it with the original ams LDOPF
 * be able to freely add new decision variables, new constraints, and modify the existing constraints
 * be able to define modify objective function, or defined customized function based on existing obj
 * be able to include new parameters and easily call them
-
-
-
 
 # NN optimization debug note
 
